@@ -18,9 +18,9 @@ are returned with occupied=None and should be excluded from accuracy scoring
 rather than guessed at.
 """
 
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
-import xml.etree.ElementTree as ET
 
 CAMERAS = ("UFPR04", "UFPR05", "PUCPR")
 
