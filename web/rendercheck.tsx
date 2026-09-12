@@ -31,6 +31,16 @@ import { HoldCard } from "./src/components/HoldCard";
 const layout = rawLayout as unknown as Layout;
 const state = rawState as unknown as ParkState;
 
+// Derived from whatever the fixture holds, so regenerating contracts/ from the live pipeline
+// does not turn this suite red for reasons that have nothing to do with the data.
+const stallIds = Object.keys(layout.spots);
+const stallCount = stallIds.length;
+const someStall = stallIds[0];
+const freeStall = stallIds.find((id) => state.spots[id]?.status === "available") ?? someStall;
+const takenStall = stallIds.find((id) => state.spots[id]?.status === "occupied") ?? someStall;
+const recommended = state.best_spot ?? freeStall;
+const accuracyText = state.summary.accuracy != null ? `${(state.summary.accuracy * 100).toFixed(1)}%` : null;
+
 let failures = 0;
 function check(name: string, ok: boolean, detail = "") {
   if (ok) console.log(`  ok   ${name}`);
@@ -66,12 +76,12 @@ for (const connection of ["connecting", "live", "mock", "fallback"] as Connectio
 }
 
 const summary = render("summary strip with data", <SummaryStrip state={state} />);
-check("summary strip shows the available count", summary.includes(">7<"), "expected 7 available");
-check("summary strip shows the best spot", summary.includes("B9"));
-check("summary strip shows accuracy as a percentage", summary.includes("94.2%"));
+check("summary strip shows the available count", summary.includes(`>${state.summary.available}<`), `expected ${state.summary.available}`);
+check("summary strip shows the best spot", recommended == null || summary.includes(String(recommended)));
+check("summary strip shows accuracy as a percentage", accuracyText == null || summary.includes(accuracyText), String(accuracyText));
 
 const twin = render("twin panel with data", <TwinPanel layout={layout} state={state} />);
-check("twin panel counts the stalls", twin.includes("28 stalls"));
+check("twin panel counts the stalls", twin.includes(`${stallCount} stalls`));
 render("twin panel with no layout", <TwinPanel layout={null} state={null} />);
 
 const simulated = render("vision panel, mock mode", <VisionPanel layout={layout} state={state} connection="mock" />);
@@ -93,11 +103,11 @@ render("analytics strip", <AnalyticsStrip />);
 
 render("activity feed, empty", <ActivityFeed events={[]} />);
 const events: LoggedEvent[] = [
-  { spot_id: "A7", from: "occupied", to: "available", at: state.timestamp, received: Date.now(), key: "a" },
-  { spot_id: "B3", from: "available", to: "held", at: state.timestamp, received: Date.now(), key: "b" },
+  { spot_id: takenStall, from: "occupied", to: "available", at: state.timestamp, received: Date.now(), key: "a" },
+  { spot_id: freeStall, from: "available", to: "held", at: state.timestamp, received: Date.now(), key: "b" },
 ];
 const feed = render("activity feed with events", <ActivityFeed events={events} />);
-check("feed names the stall that changed", feed.includes("A7"));
+check("feed names the stall that changed", feed.includes(String(takenStall)));
 check("feed is announced politely, not assertively", feed.includes('aria-live="polite"'));
 
 // ---- map geometry ----------------------------------------------------------------
@@ -145,8 +155,8 @@ check(
 // ---- the map as actually rendered -------------------------------------------------
 const map = render("twin panel with the map", <TwinPanel layout={layout} state={state} />);
 const polygons = (map.match(/<polygon/g) ?? []).length;
-check("the map draws all 28 stalls", polygons >= 28, `${polygons} polygons`);
-check("the map labels a stall", map.includes(">A7<"));
+check("the map draws every stall in the layout", polygons >= stallCount, `${polygons} polygons for ${stallCount} stalls`);
+check("the map labels a stall", map.includes(`>${someStall}<`));
 check(
   "the map draws every tracked car",
   (map.match(/Vehicle /g) ?? []).length === state.cars.length,
@@ -211,23 +221,23 @@ const idle = {
   release: () => {},
 };
 const offer = render("hold card with nothing held", <HoldCard layout={layout} state={state} holding={idle} />);
-check("the hold card offers the recommended stall", offer.includes("Hold B9") || offer.includes("B9"));
+check("the hold card offers the recommended stall", offer.includes(String(recommended)));
 check("the hold card mentions clicking the map", offer.includes("free stall on the map"));
 
 const active = {
   ...idle,
-  hold: { spotId: "A7", heldUntil: Date.now() + 62_000, route: [[0.5, 0.98], [0.5, 0.48], [0.4, 0.48], [0.4, 0.25]] as [number, number][] },
+  hold: { spotId: freeStall, heldUntil: Date.now() + 62_000, route: [[0.5, 0.98], [0.5, 0.48], [0.4, 0.48], [0.4, 0.25]] as [number, number][] },
   secondsLeft: 62,
 };
 const claimed = render("hold card with an active hold", <HoldCard layout={layout} state={state} holding={active} />);
-check("the held card names the stall", claimed.includes("A7"));
+check("the held card names the stall", claimed.includes(String(freeStall)));
 check("the held card counts down", claimed.includes("62s remaining"));
 check("the held card announces the countdown to a screen reader", claimed.includes('aria-live="polite"'));
 check("the held card offers a way out", claimed.includes("Give it up"));
 
 const routed = render(
   "twin with a route",
-  <TwinPanel layout={layout} state={state} heldSpot="A7" route={active.hold.route} onSelect={() => {}} />,
+  <TwinPanel layout={layout} state={state} heldSpot={freeStall} route={active.hold.route} onSelect={() => {}} />,
 );
 check("the route is drawn", routed.includes("route-draw"));
 check("the route flows after it draws", routed.includes("route-flow"));
