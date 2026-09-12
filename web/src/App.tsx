@@ -33,7 +33,7 @@ export default function App() {
         {/* The demo moment is watching a car leave on the left while the stall flips on the
             right, so these two stay adjacent and equal until the viewport is genuinely narrow. */}
         <div className="grid gap-5 xl:grid-cols-2">
-          <VisionPanel accuracy={state?.summary.accuracy} />
+          <VisionPanel layout={layout} state={state} connection={connection} />
           <TwinPanel layout={layout} state={state} />
         </div>
 
