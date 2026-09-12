@@ -41,13 +41,18 @@ def find_frame(camera=None):
             "Extract PKLot.tar.gz there first, then rerun."
         )
 
-    roots = [DATA / camera] if camera else sorted(
-        p for p in DATA.rglob("*") if p.is_dir() and p.name in
-        {"UFPR04", "UFPR05", "PUCPR"}
+    # The tarball nests as PKLot/PKLot/<CAMERA>, and PKLotSegmented holds per-space
+    # crops we do not want, so resolve camera directories by name under the full-frame
+    # tree rather than assuming a fixed depth.
+    wanted = {camera} if camera else {"UFPR04", "UFPR05", "PUCPR"}
+    roots = sorted(
+        p for p in DATA.rglob("*")
+        if p.is_dir() and p.name in wanted and "Segmented" not in str(p)
     )
+    if not roots:
+        sys.exit(f"No camera directory matching {wanted} under {DATA}")
+
     for root in roots:
-        if not root.exists():
-            continue
         for jpg in sorted(root.rglob("*.jpg")):
             if jpg.with_suffix(".xml").exists():
                 return jpg
