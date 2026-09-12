@@ -57,6 +57,15 @@ class Pipeline:
         self._correct = 0
         self._scored = 0
 
+        # Vehicle identity is tied to stall occupancy, not frame to frame
+        # tracking. PKLot frames are five minutes apart, so a motion tracker
+        # like ByteTrack has nothing to associate: a car that left and a
+        # different car that arrived look identical to it. A parked car keeps
+        # its number for as long as its stall stays occupied, which is both
+        # honest and what the activity feed actually wants to say.
+        self._vehicle_ids = {}
+        self._next_vehicle_id = 1
+
     def subscribe(self, callback):
         with self._lock:
             self._subscribers.append(callback)
@@ -92,8 +101,10 @@ class Pipeline:
                 boxes.append([float(v) for v in b.xyxy[0]])
                 confs.append(float(b.conf))
 
-        raw = occupancy.assign_overlap(spaces, boxes, OVERLAP_THRESHOLD)
+        matches = occupancy.match_overlap(spaces, boxes, OVERLAP_THRESHOLD)
+        raw = {sid: idx is not None for sid, idx in matches.items()}
         state, changes = self._debouncer.update(raw)
+        departed = self._update_vehicle_ids(state, changes)
 
         # Accuracy against the dataset's own labels, running, so the UI can show
         # a measured number rather than a claimed one.
@@ -119,29 +130,69 @@ class Pipeline:
                 "spot_id": spot_id,
                 "from": "occupied" if was else "available",
                 "to": "occupied" if became else "available",
+                "vehicle_id": (
+                    departed.get(spot_id) if not became
+                    else self._vehicle_ids.get(spot_id)
+                ),
             }
 
         holds = db.active_holds(self.camera_id)
-        cars = self._project_cars(boxes)
+        cars = self._project_cars(boxes, matches, state)
         self.annotated = self._annotate(image, spaces, boxes, state, holds)
         self.state = self._payload(captured, spaces, state, holds, confs, cars)
         return self.state
 
-    def _project_cars(self, boxes):
-        """Vehicle ground points in top-down space, for the twin.
+    def _update_vehicle_ids(self, state, changes):
+        """Issue a number when a stall fills, retire it when the stall empties.
 
-        Uses the bottom centre of each box, which is roughly the contact patch,
-        then the same projector the stalls went through. Different projections
-        for stalls and cars would make vehicles drift off their stalls on the
-        map, which looks like a tracking bug and is not one.
+        Returns the ids of vehicles that just left, so the activity feed can
+        name them. They have to be read before the mapping drops them.
+        """
+        departed = {}
+        for spot_id, _was, became in changes:
+            if became:
+                self._vehicle_ids[spot_id] = self._next_vehicle_id
+                self._next_vehicle_id += 1
+            else:
+                gone = self._vehicle_ids.pop(spot_id, None)
+                if gone is not None:
+                    departed[spot_id] = gone
+
+        # Seed stalls that were already occupied on the very first frame, which
+        # produce no change event but still hold a car worth numbering.
+        for spot_id, taken in state.items():
+            if taken and spot_id not in self._vehicle_ids:
+                self._vehicle_ids[spot_id] = self._next_vehicle_id
+                self._next_vehicle_id += 1
+        return departed
+
+    def _project_cars(self, boxes, matches, state):
+        """Vehicles in monitored stalls, in top-down space, for the twin.
+
+        Only cars sitting in a stall we monitor are published. The camera sees
+        the whole lot, so publishing every detection put dozens of stray dots
+        across the map with no stall under them, which read as noise rather
+        than as data.
+
+        Positions go through the same projector the stalls did. Projecting them
+        differently would make vehicles drift off their stalls on the map, which
+        looks exactly like a tracking bug and is not one.
         """
         if self.projector is None:
             return []
         cars = []
-        for i, box in enumerate(boxes):
-            x, y = self.projector(occupancy.bottom_centre(box))
-            if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
-                cars.append({"id": i, "x": round(x, 4), "y": round(y, 4)})
+        for spot_id, box_idx in matches.items():
+            if box_idx is None or not state.get(spot_id):
+                continue
+            x, y = self.projector(occupancy.bottom_centre(boxes[box_idx]))
+            if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+                continue
+            cars.append({
+                "id": self._vehicle_ids.get(spot_id, 0),
+                "x": round(x, 4),
+                "y": round(y, 4),
+                "spot_id": spot_id,
+            })
         return cars
 
     def _payload(self, now, spaces, state, holds, confs, cars=None):
@@ -159,7 +210,7 @@ class Pipeline:
                 spots[s.id] = {
                     "status": "occupied" if taken else "available",
                     "confidence": round(max(confs), 2) if taken and confs else None,
-                    "vehicle_id": None,
+                    "vehicle_id": self._vehicle_ids.get(s.id) if taken else None,
                 }
 
         available = [sid for sid, v in spots.items() if v["status"] == "available"]
