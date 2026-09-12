@@ -50,6 +50,7 @@ class Pipeline:
 
         self.state = {}
         self.layout = {}
+        self.projector = None  # set by run.py, shared with the layout
         self.annotated = None  # most recent JPEG bytes for the MJPEG stream
         self.last_event = None
         self.accuracy = None
@@ -121,11 +122,29 @@ class Pipeline:
             }
 
         holds = db.active_holds(self.camera_id)
+        cars = self._project_cars(boxes)
         self.annotated = self._annotate(image, spaces, boxes, state, holds)
-        self.state = self._payload(captured, spaces, state, holds, confs)
+        self.state = self._payload(captured, spaces, state, holds, confs, cars)
         return self.state
 
-    def _payload(self, now, spaces, state, holds, confs):
+    def _project_cars(self, boxes):
+        """Vehicle ground points in top-down space, for the twin.
+
+        Uses the bottom centre of each box, which is roughly the contact patch,
+        then the same projector the stalls went through. Different projections
+        for stalls and cars would make vehicles drift off their stalls on the
+        map, which looks like a tracking bug and is not one.
+        """
+        if self.projector is None:
+            return []
+        cars = []
+        for i, box in enumerate(boxes):
+            x, y = self.projector(occupancy.bottom_centre(box))
+            if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
+                cars.append({"id": i, "x": round(x, 4), "y": round(y, 4)})
+        return cars
+
+    def _payload(self, now, spaces, state, holds, confs, cars=None):
         spots = {}
         for s in spaces:
             if s.id in holds:
@@ -158,7 +177,7 @@ class Pipeline:
             "camera_id": self.camera_id,
             "timestamp": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "spots": spots,
-            "cars": [],  # populated once the homography lands
+            "cars": cars or [],
             "summary": {
                 "total": len(spots),
                 "occupied": sum(
