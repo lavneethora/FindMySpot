@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Hold, Layout, ParkState } from "../lib/contract";
+import type { Analytics, Hold, Layout, ParkState } from "../lib/contract";
 import { createSource, type Connection, type Source } from "../lib/source";
 
 export interface ParkTech {
@@ -14,6 +14,8 @@ export interface ParkTech {
   /** Non fatal problems worth showing in the UI rather than swallowing. */
   error: string | null;
   hold: (spotId: string) => Promise<Hold>;
+  /** Stable, so passing it to an effect does not restart the poll on every state message. */
+  fetchAnalytics: () => Promise<Analytics>;
 }
 
 export function useParkTech(): ParkTech {
@@ -68,5 +70,11 @@ export function useParkTech(): ParkTech {
     }
   }, []);
 
-  return { layout, state, connection, error, hold };
+  const fetchAnalytics = useCallback((): Promise<Analytics> => {
+    const active = source.current;
+    if (!active) return Promise.reject(new Error("Not connected yet"));
+    return active.getAnalytics();
+  }, []);
+
+  return { layout, state, connection, error, hold, fetchAnalytics };
 }
