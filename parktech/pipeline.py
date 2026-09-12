@@ -67,6 +67,7 @@ class Pipeline:
         # honest and what the activity feed actually wants to say.
         self._vehicle_ids = {}
         self._next_vehicle_id = 1
+        self._matched_boxes = set()
 
     def seek(self, time_of_day):
         """Rotate the frame list so replay begins near a given clock time.
@@ -119,6 +120,7 @@ class Pipeline:
                 confs.append(float(b.conf))
 
         matches = occupancy.match_overlap(spaces, boxes, OVERLAP_THRESHOLD)
+        self._matched_boxes = set(matches.values())
         raw = {sid: idx is not None for sid, idx in matches.items()}
         state, changes = self._debouncer.update(raw)
         departed = self._update_vehicle_ids(state, changes)
@@ -269,17 +271,51 @@ class Pipeline:
             "last_event": self.last_event,
         }
 
+    def _crop_to_zone(self, image, spaces, pad=28):
+        """Trim the frame to the stalls we actually monitor.
+
+        The camera sees far more of the lot than the dataset labels: roads, a
+        second bank of parking, and rows that were never annotated. Showing all
+        of it invites the obvious question of why cars are boxed in places the
+        map has no stall for. They are detected and then discarded, because
+        there is nothing to assign them to.
+
+        Cropping makes the panel show exactly the zone we claim to monitor.
+        Returns the cropped image and the (dx, dy) to shift stall coordinates.
+        """
+        pts = [p for s in spaces for p in s.contour]
+        if not pts:
+            return image, (0, 0)
+        height, width = image.shape[:2]
+        x0 = max(0, min(p[0] for p in pts) - pad)
+        y0 = max(0, min(p[1] for p in pts) - pad)
+        x1 = min(width, max(p[0] for p in pts) + pad)
+        y1 = min(height, max(p[1] for p in pts) + pad)
+        if x1 <= x0 or y1 <= y0:
+            return image, (0, 0)
+        return image[int(y0):int(y1), int(x0):int(x1)], (int(x0), int(y0))
+
     def _annotate(self, image, spaces, boxes, state, holds):
         """Draw the vision panel: stall outlines coloured by state, plus boxes."""
         import numpy as np
 
-        for x1, y1, x2, y2 in boxes:
+        image, (dx, dy) = self._crop_to_zone(image, spaces)
+
+        # Only draw detections that landed in a monitored stall. A box over an
+        # unmonitored car reads as a bug rather than as out of scope.
+        tracked = {i for i in self._matched_boxes if i is not None}
+        for index, (x1, y1, x2, y2) in enumerate(boxes):
+            if index not in tracked:
+                continue
             cv2.rectangle(
-                image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 190, 60), 1
+                image, (int(x1) - dx, int(y1) - dy),
+                (int(x2) - dx, int(y2) - dy), (255, 190, 60), 1
             )
 
         for s in spaces:
-            poly = np.array(s.contour, np.int32).reshape(-1, 1, 2)
+            poly = np.array(
+                [[p[0] - dx, p[1] - dy] for p in s.contour], np.int32
+            ).reshape(-1, 1, 2)
             if s.id in holds:
                 colour = (0, 190, 255)  # amber, claimed by a driver
             elif state.get(s.id):
