@@ -126,6 +126,27 @@
   --animate-hold-pulse: hold-pulse 2s ease-in-out infinite;
 }
 
+/* The route draws itself once, then keeps a slow flow along its length so it reads as a
+   direction rather than a static line. pathLength is declared as 1 on the polyline, so both
+   of these work in fractions of the route regardless of how long it actually is. */
+@keyframes route-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes route-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -0.16;
+  }
+}
+
 @keyframes hold-pulse {
   0%,
   100% {

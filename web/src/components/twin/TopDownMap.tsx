@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import type { Layout, ParkState } from "../../lib/contract";
 import { SCALE, units, viewBoxFor, viewBoxString } from "../../lib/geometry";
+import type { Point } from "../../lib/contract";
 import { MapDefs } from "./MapDefs";
+import { RouteLayer } from "./RouteLayer";
 import { CarLayer } from "./CarLayer";
 import { StallLayer, statusSignature } from "./StallLayer";
 
@@ -11,9 +13,12 @@ export const MAP_ASPECT = 4 / 3;
 interface TopDownMapProps {
   layout: Layout;
   state: ParkState | null;
+  heldSpot?: string | null;
+  route?: Point[];
+  onSelect?: (spotId: string) => void;
 }
 
-export function TopDownMap({ layout, state }: TopDownMapProps) {
+export function TopDownMap({ layout, state, heldSpot = null, route, onSelect }: TopDownMapProps) {
   const box = useMemo(() => viewBoxFor(layout, MAP_ASPECT), [layout]);
   const signature = statusSignature(state);
   const [entranceX, entranceY] = units([layout.entrance.x, layout.entrance.y]);
@@ -52,7 +57,18 @@ export function TopDownMap({ layout, state }: TopDownMapProps) {
         </g>
       )}
 
-      <StallLayer layout={layout} state={state} bestSpot={state?.best_spot ?? null} signature={signature} />
+      <StallLayer
+        layout={layout}
+        state={state}
+        bestSpot={state?.best_spot ?? null}
+        heldSpot={heldSpot}
+        onSelect={onSelect}
+        signature={signature}
+      />
+
+      {/* Above the stalls so it is never hidden by one, below the cars so a vehicle driving
+          the route still reads as being on top of it. */}
+      {route && route.length > 1 && <RouteLayer route={route} />}
 
       <CarLayer cars={state?.cars ?? []} />
 

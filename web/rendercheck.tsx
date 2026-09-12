@@ -23,6 +23,8 @@ import type { LoggedEvent } from "./src/hooks/useActivityLog";
 import { labelSize, SCALE, viewBoxFor } from "./src/lib/geometry";
 import { MAP_ASPECT } from "./src/components/twin/TopDownMap";
 import { homographyFrom, project, SIMULATED_CAMERA } from "./src/lib/perspective";
+import { holdVerdict } from "./src/hooks/useHold";
+import { HoldCard } from "./src/components/HoldCard";
 
 const layout = rawLayout as unknown as Layout;
 const state = rawState as unknown as ParkState;
@@ -185,6 +187,60 @@ for (let x = 0; x <= 1.0001; x += 0.05) {
   }
 }
 check("the whole lot projects into frame", offFrame === 0, `${offFrame} points off frame`);
+
+// ---- the hold release decision ------------------------------------------------------
+// The race: the claim resolves before the next state message arrives, so for one tick the
+// stall still reads "available". Treating that as a refusal would cancel every hold instantly.
+check("an unconfirmed hold survives a stale available", holdVerdict("available", false) === "keep");
+check("the first held reading confirms the hold", holdVerdict("held", false) === "confirm");
+check("a confirmed hold stays held", holdVerdict("held", true) === "keep");
+check("a car arriving releases a confirmed hold", holdVerdict("occupied", true) === "release");
+check("the stall going free releases a confirmed hold", holdVerdict("available", true) === "release");
+check("no information never releases a hold", holdVerdict(undefined, true) === "keep");
+check("no information on an unconfirmed hold also keeps it", holdVerdict(undefined, false) === "keep");
+
+// ---- hold card and route ------------------------------------------------------------
+const idle = {
+  hold: null,
+  pending: null,
+  error: null,
+  secondsLeft: 0,
+  claim: async () => {},
+  release: () => {},
+};
+const offer = render("hold card with nothing held", <HoldCard layout={layout} state={state} holding={idle} />);
+check("the hold card offers the recommended stall", offer.includes("Hold B9") || offer.includes("B9"));
+check("the hold card mentions clicking the map", offer.includes("free stall on the map"));
+
+const active = {
+  ...idle,
+  hold: { spotId: "A7", heldUntil: Date.now() + 62_000, route: [[0.5, 0.98], [0.5, 0.48], [0.4, 0.48], [0.4, 0.25]] as [number, number][] },
+  secondsLeft: 62,
+};
+const claimed = render("hold card with an active hold", <HoldCard layout={layout} state={state} holding={active} />);
+check("the held card names the stall", claimed.includes("A7"));
+check("the held card counts down", claimed.includes("62s remaining"));
+check("the held card announces the countdown to a screen reader", claimed.includes('aria-live="polite"'));
+check("the held card offers a way out", claimed.includes("Give it up"));
+
+const routed = render(
+  "twin with a route",
+  <TwinPanel layout={layout} state={state} heldSpot="A7" route={active.hold.route} onSelect={() => {}} />,
+);
+check("the route is drawn", routed.includes("route-draw"));
+check("the route flows after it draws", routed.includes("route-flow"));
+check("the route is measured in fractions of itself", routed.includes('pathLength="1"'));
+
+const interactive = render(
+  "twin with selection enabled",
+  <TwinPanel layout={layout} state={state} onSelect={() => {}} />,
+);
+const buttons = (interactive.match(/role="button"/g) ?? []).length;
+const available = Object.values(state.spots).filter((s) => s.status === "available").length;
+check("every free stall is a button", buttons === available, `${buttons} buttons for ${available} free stalls`);
+check("free stalls are keyboard reachable", interactive.includes('tabindex="0"'));
+check("occupied stalls are not focusable", buttons < Object.keys(state.spots).length);
+check("buttons say what they do", interactive.includes("Hold stall"));
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

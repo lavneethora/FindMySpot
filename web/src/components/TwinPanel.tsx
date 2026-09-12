@@ -1,4 +1,4 @@
-import type { Layout, ParkState } from "../lib/contract";
+import type { Layout, ParkState, Point } from "../lib/contract";
 import { STATUS_ORDER, styleFor } from "../lib/status";
 import { Panel, PanelHead } from "./ui/Panel";
 import { Placeholder } from "./ui/Placeholder";
@@ -7,13 +7,16 @@ import { MAP_ASPECT, TopDownMap } from "./twin/TopDownMap";
 interface TwinPanelProps {
   layout: Layout | null;
   state: ParkState | null;
+  heldSpot?: string | null;
+  route?: Point[];
+  onSelect?: (spotId: string) => void;
 }
 
 /**
  * The digital twin. `solid` rather than `glass` because the map animates on every state
  * change and must not sit under a backdrop filter.
  */
-export function TwinPanel({ layout, state }: TwinPanelProps) {
+export function TwinPanel({ layout, state, heldSpot = null, route, onSelect }: TwinPanelProps) {
   const counts = STATUS_ORDER.map((status) => ({
     status,
     style: styleFor(status),
@@ -26,7 +29,7 @@ export function TwinPanel({ layout, state }: TwinPanelProps) {
         title="Digital twin"
         hint={
           layout
-            ? `${Object.keys(layout.spots).length} stalls, rectified to an overhead view by a four point homography.`
+            ? `${Object.keys(layout.spots).length} stalls, rectified to an overhead view by a four point homography. Click a free stall to hold it.`
             : "Rectified to an overhead view by a four point homography."
         }
       />
@@ -36,7 +39,7 @@ export function TwinPanel({ layout, state }: TwinPanelProps) {
         style={{ aspectRatio: `${MAP_ASPECT}` }}
       >
         {layout ? (
-          <TopDownMap layout={layout} state={state} />
+          <TopDownMap layout={layout} state={state} heldSpot={heldSpot} route={route} onSelect={onSelect} />
         ) : (
           <Placeholder what="Waiting for the lot layout." ratio={`${MAP_ASPECT}`} />
         )}
