@@ -2,6 +2,7 @@ import type { Layout, ParkState } from "../lib/contract";
 import { STATUS_ORDER, styleFor } from "../lib/status";
 import { Panel, PanelHead } from "./ui/Panel";
 import { Placeholder } from "./ui/Placeholder";
+import { MAP_ASPECT, TopDownMap } from "./twin/TopDownMap";
 
 interface TwinPanelProps {
   layout: Layout | null;
@@ -9,8 +10,8 @@ interface TwinPanelProps {
 }
 
 /**
- * The digital twin. `solid` for the same reason as the vision panel: the map animates on
- * every state change and must not sit under a backdrop filter.
+ * The digital twin. `solid` rather than `glass` because the map animates on every state
+ * change and must not sit under a backdrop filter.
  */
 export function TwinPanel({ layout, state }: TwinPanelProps) {
   const counts = STATUS_ORDER.map((status) => ({
@@ -29,10 +30,19 @@ export function TwinPanel({ layout, state }: TwinPanelProps) {
             : "Rectified to an overhead view by a four point homography."
         }
       />
-      <Placeholder what="The top down map lands here in the next change." ratio="16 / 10" />
 
-      {/* The legend is the second channel that makes the map readable without colour, so it
-          ships with the shell rather than waiting for the map itself. */}
+      <div
+        className="overflow-hidden rounded-panel border border-card-border"
+        style={{ aspectRatio: `${MAP_ASPECT}` }}
+      >
+        {layout ? (
+          <TopDownMap layout={layout} state={state} />
+        ) : (
+          <Placeholder what="Waiting for the lot layout." ratio={`${MAP_ASPECT}`} />
+        )}
+      </div>
+
+      {/* The legend is the second channel that makes the map readable without colour. */}
       <ul className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
         {counts.map(({ status, style, count }) => (
           <li key={status} className="flex items-center gap-2 text-small">
@@ -45,6 +55,10 @@ export function TwinPanel({ layout, state }: TwinPanelProps) {
             <span className="tabular text-ink/40">{count}</span>
           </li>
         ))}
+        <li className="ml-auto flex items-center gap-2 text-small text-ink/40">
+          <span aria-hidden className="size-3 rounded-full border-2 border-dashed border-open-edge" />
+          closest open stall
+        </li>
       </ul>
     </Panel>
   );
