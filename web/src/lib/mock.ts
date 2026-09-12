@@ -75,14 +75,17 @@ export class MockPipeline {
   private timer: ReturnType<typeof setInterval> | null = null;
   private startedAt = 0;
   private lastFrame = -1;
+  private emitted = false;
+  /** The most recently composed state. hold() reads this instead of composing again,
+      because compose() advances the frame tracking and would swallow a last_event. */
+  private current: ParkState | null = null;
 
   getLayout(): Promise<Layout> {
     return Promise.resolve(layout);
   }
 
   hold(spotId: string): Promise<Hold> {
-    const current = this.compose(this.now());
-    const status = current.spots[spotId]?.status;
+    const status = this.current?.spots[spotId]?.status;
     if (status !== "available") {
       return Promise.reject(new Error(`${spotId} is ${status ?? "unknown"}, not available`));
     }
@@ -99,6 +102,8 @@ export class MockPipeline {
     this.stop();
     this.startedAt = Date.now();
     this.lastFrame = -1;
+    this.emitted = false;
+    this.current = null;
     const emit = () => onState(this.compose(this.now()));
     emit();
     this.timer = setInterval(emit, TICK_MS);
@@ -150,10 +155,13 @@ export class MockPipeline {
     const available = total - occupied - held;
 
     // last_event fires once, on the tick where the frame index changes, not on every tick.
-    const crossed = index !== this.lastFrame;
+    // Never on the very first emission: arriving at frame 0 is not a transition, and an
+    // activity feed that announces a stall change the instant the page loads is a lie.
+    const crossed = this.emitted && index !== this.lastFrame;
     this.lastFrame = index;
+    this.emitted = true;
 
-    return {
+    const composed: ParkState = {
       camera_id: frame.camera_id,
       timestamp: frame.timestamp,
       spots,
@@ -162,6 +170,8 @@ export class MockPipeline {
       best_spot: this.bestSpot(spots),
       last_event: crossed ? diffFrames(prev, frame) : null,
     };
+    this.current = composed;
+    return composed;
   }
 
   /**
