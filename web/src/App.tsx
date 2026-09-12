@@ -1,18 +1,17 @@
 import { useState } from "react";
 import { useParkTech } from "./hooks/useParkTech";
+import { STATUS_ORDER, styleFor, type DisplayStatus } from "./lib/status";
+import { Mesh } from "./components/ui/Mesh";
+import { Panel, PanelHead } from "./components/ui/Panel";
+import { Button } from "./components/ui/Button";
+import { Pill, StatusBadge } from "./components/ui/Badge";
+import { Stat } from "./components/ui/Stat";
 
-const panel =
-  "rounded-[24px] border border-white/70 bg-white/55 backdrop-blur-xl backdrop-saturate-150 " +
-  "shadow-[0_1px_2px_rgba(0,0,0,0.035),0_3px_8px_rgba(0,0,0,0.035),0_8px_28px_rgba(0,0,0,0.043)]";
-
-const label = "text-[13px] leading-[1.4] text-black/50";
-const value = "text-[28px] leading-[1.1] font-semibold tracking-[-0.02em] tabular-nums";
-
-const connectionCopy: Record<string, string> = {
-  connecting: "Connecting to the pipeline",
-  live: "Live from the pipeline",
-  mock: "Mock replay, no backend needed",
-  fallback: "Pipeline dropped, replaying the fixture",
+const CONNECTION: Record<string, { copy: string; tone: "neutral" | "live" | "warn" }> = {
+  connecting: { copy: "Connecting", tone: "neutral" },
+  live: { copy: "Live", tone: "live" },
+  mock: { copy: "Mock replay", tone: "neutral" },
+  fallback: { copy: "Pipeline dropped", tone: "warn" },
 };
 
 export default function App() {
@@ -20,102 +19,133 @@ export default function App() {
   const [note, setNote] = useState<string | null>(null);
 
   const best = state?.best_spot ?? null;
+  const link = CONNECTION[connection] ?? CONNECTION.connecting;
+
+  const counts = STATUS_ORDER.map((status) => ({
+    status,
+    count: state ? Object.values(state.spots).filter((s) => s.status === status).length : 0,
+  }));
 
   async function holdBest() {
     if (!best) return;
     try {
       const result = await hold(best);
-      setNote(`Held ${result.spot_id} until ${new Date(result.held_until).toLocaleTimeString()}, route has ${result.route.length} waypoints`);
+      const until = new Date(result.held_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      setNote(`${result.spot_id} held until ${until}. Route has ${result.route.length} waypoints.`);
     } catch (cause) {
       setNote(cause instanceof Error ? cause.message : "Hold failed");
     }
   }
 
   return (
-    <div className="relative min-h-full overflow-hidden">
-      {/* The warm mesh ground. Frosted panels need something behind them worth blurring,
-          which is the part light glassmorphism usually gets wrong. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-paper">
-        <div className="absolute -top-40 -left-32 h-[40rem] w-[40rem] rounded-full bg-[#F2C879] opacity-40 blur-[120px]" />
-        <div className="absolute top-1/4 -right-40 h-[36rem] w-[36rem] rounded-full bg-[#9DBFA4] opacity-35 blur-[130px]" />
-        <div className="absolute -bottom-48 left-1/4 h-[32rem] w-[32rem] rounded-full bg-[#E5A98C] opacity-30 blur-[140px]" />
-      </div>
-
-      <main className="mx-auto flex min-h-full max-w-[1200px] flex-col justify-center gap-6 px-10 py-16">
-        <section className={`${panel} p-[26px]`}>
-          <div className="flex items-baseline justify-between gap-4">
-            <h1 className="text-[40px] leading-[1] font-semibold tracking-[-0.04em]">ParkTech</h1>
-            <p className={label}>
-              {layout?.lot_name ?? "Loading"} · {connectionCopy[connection] ?? connection}
+    <>
+      <Mesh />
+      <div className="mx-auto flex min-h-full max-w-[1200px] flex-col gap-6 px-6 py-10 sm:px-10">
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-display text-display font-semibold">ParkTech</h1>
+            <p className="mt-2 text-body text-ink/70">
+              {layout?.lot_name ?? "Loading the lot"}
+              {layout ? ` · camera ${layout.camera_id}` : ""}
             </p>
           </div>
-
-          <div className="mt-7 grid grid-cols-2 gap-6 sm:grid-cols-4">
-            <div>
-              <p className={value}>{state?.summary.available ?? "--"}</p>
-              <p className={label}>Available</p>
-            </div>
-            <div>
-              <p className={value}>{state?.summary.occupied ?? "--"}</p>
-              <p className={label}>Occupied</p>
-            </div>
-            <div>
-              <p className={value}>{state?.summary.total ?? "--"}</p>
-              <p className={label}>Monitored</p>
-            </div>
-            <div>
-              <p className={value}>
-                {state?.summary.accuracy != null ? `${(state.summary.accuracy * 100).toFixed(1)}%` : "--"}
-              </p>
-              <p className={label}>Accuracy</p>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone={link.tone}>{link.copy}</Pill>
+            <Pill title="Video never leaves the machine that processes it">Edge only</Pill>
           </div>
-        </section>
+        </header>
 
-        <section className={`${panel} p-[26px]`}>
-          <p className={label}>Plumbing check. Replaced by the real shell in the next change.</p>
-          <dl className="mt-4 grid gap-2 text-[14px] tabular-nums">
-            <div className="flex justify-between gap-4">
-              <dt className="text-black/50">Frame timestamp</dt>
-              <dd>{state?.timestamp ?? "--"}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-black/50">Best spot</dt>
-              <dd>{best ?? "--"}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-black/50">Last event</dt>
-              <dd>
-                {state?.last_event
-                  ? `${state.last_event.spot_id}: ${state.last_event.from} to ${state.last_event.to}`
-                  : "none this tick"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-black/50">Tracked cars</dt>
-              <dd>
-                {state?.cars.map((car) => `#${car.id} ${car.x.toFixed(3)},${car.y.toFixed(3)}`).join("   ") ?? "--"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-black/50">Layout stalls</dt>
-              <dd>{layout ? Object.keys(layout.spots).length : "--"}</dd>
-            </div>
-          </dl>
+        <Panel>
+          <PanelHead
+            title="Right now"
+            hint="Counts come straight off the state message, never recomputed in the browser."
+            aside={counts.map(({ status, count }) => (
+              <StatusBadge key={status} status={status} count={count} />
+            ))}
+          />
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+            <Stat label="Available" value={state?.summary.available ?? "--"} tone="var(--color-open)" />
+            <Stat label="Occupied" value={state?.summary.occupied ?? "--"} tone="var(--color-taken)" />
+            <Stat label="Monitored" value={state?.summary.total ?? "--"} />
+            <Stat
+              label="Per stall accuracy"
+              value={state?.summary.accuracy != null ? `${(state.summary.accuracy * 100).toFixed(1)}%` : "--"}
+              note="measured against ground truth"
+            />
+          </div>
+        </Panel>
 
-          <button
-            type="button"
-            onClick={holdBest}
-            disabled={!best}
-            className="mt-6 h-10 rounded-[14px] bg-gradient-to-b from-[#3A3A3A] to-[#353535] px-4 text-[16px] font-medium text-white shadow-[0_0.5px_1px_rgba(0,0,0,0.08),0_1px_3px_rgba(0,0,0,0.1),0_4px_12px_rgba(0,0,0,0.08),inset_0_0_0_1.25px_#353535,inset_0_0_12px_rgba(255,255,255,0.1)] transition-[transform,filter] duration-150 ease-out hover:brightness-110 active:scale-[0.98] disabled:opacity-40"
-          >
-            Hold {best ?? "best spot"}
-          </button>
+        <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+          <Panel>
+            <PanelHead
+              title="Status palette"
+              hint="Every state carries a word as well as a colour, and the fills separate by lightness so the map still reads with all colour information removed."
+            />
+            <ul className="grid gap-3">
+              {(["available", "held", "occupied", "unknown"] as DisplayStatus[]).map((status) => {
+                const style = styleFor(status);
+                return (
+                  <li key={status} className="flex items-center gap-4">
+                    <span
+                      className="flex h-12 w-20 shrink-0 items-center justify-center rounded-chip text-caption font-semibold"
+                      style={{ backgroundColor: style.fill, color: style.on, border: `1.5px solid ${style.edge}` }}
+                    >
+                      A7
+                    </span>
+                    <div>
+                      <p className="text-body font-medium" style={{ color: style.ink }}>
+                        {style.label}
+                      </p>
+                      <p className="text-small text-ink/50">
+                        {style.pattern ? `flat fill plus a ${style.pattern} pattern` : "flat fill"}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Panel>
 
-          {note && <p className="mt-3 text-[14px] text-black/70">{note}</p>}
-          {error && <p className="mt-3 text-[14px] text-[#B3261E]">{error}</p>}
-        </section>
-      </main>
-    </div>
+          <Panel>
+            <PanelHead title="Soft hold" hint="Ninety seconds, released early if a car arrives." />
+            <dl className="grid gap-3 text-caption">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-ink/50">Best spot</dt>
+                <dd className="tabular font-medium">{best ?? "--"}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-ink/50">Frame</dt>
+                <dd className="tabular">
+                  {state ? new Date(state.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-ink/50">Last change</dt>
+                <dd className="text-right">
+                  {state?.last_event ? `${state.last_event.spot_id} ${state.last_event.to}` : "steady"}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="mt-6 flex flex-col gap-3">
+              <Button onClick={holdBest} disabled={!best}>
+                Hold {best ?? "best spot"}
+              </Button>
+              <Button variant="secondary" onClick={() => setNote(null)} disabled={!note}>
+                Clear
+              </Button>
+            </div>
+
+            {note && <p className="mt-4 text-small text-ink/70">{note}</p>}
+            {error && <p className="mt-2 text-small text-danger">{error}</p>}
+          </Panel>
+        </div>
+
+        <p className="text-small text-ink/40">
+          Token preview. The two panel shell, the digital twin and the analytics strip land in
+          the next changes.
+        </p>
+      </div>
+    </>
   );
 }
