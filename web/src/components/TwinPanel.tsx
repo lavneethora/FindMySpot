@@ -2,7 +2,7 @@ import type { Layout, ParkState, Point } from "../lib/contract";
 import { STATUS_ORDER, styleFor } from "../lib/status";
 import { Panel, PanelHead } from "./ui/Panel";
 import { Placeholder } from "./ui/Placeholder";
-import { MAP_ASPECT, TopDownMap } from "./twin/TopDownMap";
+import { TopDownMap } from "./twin/TopDownMap";
 
 interface TwinPanelProps {
   layout: Layout | null;
@@ -36,12 +36,12 @@ export function TwinPanel({ layout, state, heldSpot = null, route, onSelect }: T
 
       <div
         className="overflow-hidden rounded-panel border border-card-border"
-        style={{ aspectRatio: `${MAP_ASPECT}` }}
+        style={{ aspectRatio: "var(--twin-aspect)" }}
       >
         {layout ? (
           <TopDownMap layout={layout} state={state} heldSpot={heldSpot} route={route} onSelect={onSelect} />
         ) : (
-          <Placeholder what="Waiting for the lot layout." ratio={`${MAP_ASPECT}`} />
+          <Placeholder what="Waiting for the lot layout." ratio="var(--twin-aspect)" />
         )}
       </div>
 

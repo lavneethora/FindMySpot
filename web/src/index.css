@@ -129,6 +129,41 @@
 /* The route draws itself once, then keeps a slow flow along its length so it reads as a
    direction rather than a static line. pathLength is declared as 1 on the polyline, so both
    of these work in fractions of the route regardless of how long it actually is. */
+/**
+ * Panel shapes, driven by viewport HEIGHT rather than width.
+ *
+ * The ninety second run needs the camera panel and the twin on screen together, because the
+ * script is "point left, then point right". On a 1080p laptop the browser viewport is nearer
+ * 950px than 1080, and at the tall shapes these panels want, the pair ends up below the fold
+ * and the demo becomes a scroll. Flattening them on short viewports keeps both visible.
+ *
+ * The map reads its own box and recomputes its viewport, so flattening costs no letterboxing.
+ */
+:root {
+  --vision-aspect: 16 / 10;
+  --twin-aspect: 4 / 3;
+  --page-gap: 1.25rem;
+  --page-pad: 2rem;
+}
+
+@media (max-height: 940px) {
+  :root {
+    --vision-aspect: 16 / 9;
+    --twin-aspect: 16 / 11;
+    --page-gap: 1rem;
+    --page-pad: 1.25rem;
+  }
+}
+
+@media (max-height: 820px) {
+  :root {
+    --vision-aspect: 2 / 1;
+    --twin-aspect: 16 / 9;
+    --page-gap: 0.75rem;
+    --page-pad: 1rem;
+  }
+}
+
 @keyframes route-draw {
   from {
     stroke-dashoffset: 1;
