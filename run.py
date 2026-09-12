@@ -58,6 +58,8 @@ def build_layout(frames, camera_id):
         spaces, camera_id, row_spec=row_spec, drivable_gaps=drivable,
         lot_name=f"PKLot {camera_id}",
     )
+    print(f"layout: {len(built['spots'])} stalls, "
+          f"aisles at gaps {built['drivable_gaps']}")
 
     # Vehicles are placed on the stall they occupy rather than warped
     # independently, so a car can never appear off its own stall on the map.
