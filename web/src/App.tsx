@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useParkTech } from "./hooks/useParkTech";
 import { useActivityLog } from "./hooks/useActivityLog";
 import { useHold } from "./hooks/useHold";
+import { useAnalytics } from "./hooks/useAnalytics";
 import { Mesh } from "./components/ui/Mesh";
 import { AppHeader } from "./components/AppHeader";
 import { SummaryStrip } from "./components/SummaryStrip";
@@ -13,9 +14,10 @@ import { HoldCard } from "./components/HoldCard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
-  const { layout, state, connection, error, hold } = useParkTech();
+  const { layout, state, connection, error, hold, fetchAnalytics } = useParkTech();
   const events = useActivityLog(state);
   const holding = useHold(hold, state);
+  const analytics = useAnalytics(fetchAnalytics, state);
 
   // Stable, so the memoized stall layer is not invalidated on every state message.
   const onSelect = useCallback((spotId: string) => void holding.claim(spotId), [holding.claim]);
@@ -64,7 +66,7 @@ export default function App() {
 
         <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]" style={{ gap: "var(--page-gap)" }}>
           <ErrorBoundary what="The analytics strip">
-            <AnalyticsStrip />
+            <AnalyticsStrip analytics={analytics} connection={connection} />
           </ErrorBoundary>
           <div className="flex flex-col" style={{ gap: "var(--page-gap)" }}>
             <ErrorBoundary what="The hold card">
