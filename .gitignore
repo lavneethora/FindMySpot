@@ -4,6 +4,7 @@ data/*.zip
 data/*.tar.gz
 *.pt
 runs/
+*_out.jpg
 
 # Python
 venv/
