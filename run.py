@@ -1,7 +1,7 @@
 """ParkTech. One command starts everything.
 
-    python run.py                          # replay UFPR04, serve on :8000
-    python run.py --camera UFPR05 --fps 4
+    python run.py                          # replay PUCPR, serve on :8100
+    python run.py --camera UFPR04 --fps 4
     python run.py --headless --limit 20    # no server, just print state
 
 Replay, inference, occupancy, the database writes, the MJPEG stream and the
@@ -19,12 +19,12 @@ sys.path.insert(0, str(REPO))
 
 import cv2
 
-from parktech import db, pklot
+from parktech import db, pklot, uniform
 from parktech import layout as layout_mod
 from parktech.pipeline import Pipeline
 
 DATA = REPO / "data" / "PKLot"
-HOMOGRAPHY = REPO / "config" / "homography.json"
+ROWS = REPO / "config" / "rows.json"
 
 
 def build_layout(frames, camera_id):
@@ -39,30 +39,42 @@ def build_layout(frames, camera_id):
     image = cv2.imread(str(jpg))
     height, width = image.shape[:2]
 
-    matrix = None
-    if HOMOGRAPHY.exists():
-        with open(HOMOGRAPHY) as fh:
-            matrix = json.load(fh).get("matrix")
-        print("homography: loaded, top-down view is rectified")
-    else:
-        print("homography: none yet, twin will inherit the camera angle. "
-              "Run python calibrate.py")
+    # Row grouping is configured per camera. Automatic detection works on
+    # straight lots but merges rows that touch, so an explicit grouping wins
+    # where one exists.
+    row_spec, drivable = None, None
+    if ROWS.exists():
+        with open(ROWS) as fh:
+            cams = json.load(fh)
+        cfg = cams.get(camera_id) or {}
+        row_spec = cfg.get("rows")
+        drivable = cfg.get("drivable_gaps")
+        if row_spec:
+            print(f"layout: {len(row_spec)} rows configured for {camera_id}")
+        else:
+            print(f"layout: no row config for {camera_id}, detecting rows")
 
-    # One projector for stalls and for live vehicles, so they cannot disagree.
-    projector = layout_mod.make_projector(spaces, (width, height), matrix)
-    built = layout_mod.from_spaces(
-        spaces, (width, height), camera_id,
-        lot_name=f"PKLot {camera_id}", projector=projector,
+    built = uniform.to_layout(
+        spaces, camera_id, row_spec=row_spec, drivable_gaps=drivable,
+        lot_name=f"PKLot {camera_id}",
     )
+
+    # Vehicles are placed on the stall they occupy rather than warped
+    # independently, so a car can never appear off its own stall on the map.
+    projector = layout_mod.make_projector(spaces, (width, height), None)
     return built, projector
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--camera", default="UFPR04")
+    ap.add_argument("--camera", default="PUCPR")
     ap.add_argument("--fps", type=float, default=2.0,
                     help="replay speed. A day of 5 minute stills at 2fps is ~2.5 min")
-    ap.add_argument("--host", default="127.0.0.1")
+    # 0.0.0.0, not 127.0.0.1. `localhost` resolves to IPv6 ::1 first on macOS,
+    # and a server bound only to 127.0.0.1 refuses that connection. curl retries
+    # over IPv4 and hides the problem; Vite's proxy does not, so /api and /ws
+    # came back as 502 and the twin silently froze on its first payload.
+    ap.add_argument("--host", default="0.0.0.0")
     # 8000 is a crowded default and already taken on this machine by another
     # project. 8100 keeps ParkTech out of the way.
     ap.add_argument("--port", type=int, default=8100)
@@ -71,6 +83,10 @@ def main():
     ap.add_argument("--limit", type=int, default=0,
                     help="headless only: stop after N frames")
     ap.add_argument("--no-loop", action="store_true")
+    ap.add_argument("--start", default=None,
+                    help="begin replay at this time of day, e.g. 11:30. The "
+                         "dataset opens before dawn on an empty lot, which is "
+                         "a poor thing to open a demo on.")
     args = ap.parse_args()
 
     dirs = pklot.camera_dirs(DATA, args.camera)
@@ -93,6 +109,8 @@ def main():
     pipeline = Pipeline(
         dirs[0], args.camera, fps=args.fps, loop=not args.no_loop
     )
+    if args.start:
+        pipeline.seek(args.start)
     layout, projector = build_layout(pipeline.frames, args.camera)
     pipeline.layout = layout["spots"]
     pipeline.projector = projector
