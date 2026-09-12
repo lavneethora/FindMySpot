@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lavneethora/TechPark/contracts/state.schema.json",
+  "title": "ParkTech live state message",
+  "description": "One state message, broadcast over the WebSocket whenever occupancy changes. This is the interface between the vision lane and the web lane. Additive changes only: fields may be added, never renamed or removed.",
+  "type": "object",
+  "required": ["camera_id", "timestamp", "spots", "cars", "summary"],
+  "additionalProperties": true,
+  "properties": {
+    "camera_id": {
+      "type": "string",
+      "description": "Which camera zone this state describes."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp of the frame this state was derived from."
+    },
+    "spots": {
+      "type": "object",
+      "description": "Keyed by spot id. Every monitored spot appears every message.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "enum": ["occupied", "available", "held"],
+            "description": "held means a driver has claimed it and it is not offered to anyone else."
+          },
+          "confidence": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Detector confidence for an occupied spot. Null when available."
+          },
+          "vehicle_id": {
+            "type": ["integer", "null"],
+            "description": "ByteTrack id of the vehicle in this spot, when known."
+          },
+          "held_until": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Present only when status is held."
+          }
+        }
+      }
+    },
+    "cars": {
+      "type": "array",
+      "description": "Vehicles currently tracked, in normalized top-down coordinates. Already warped server side; the frontend never does geometry.",
+      "items": {
+        "type": "object",
+        "required": ["id", "x", "y"],
+        "properties": {
+          "id": { "type": "integer" },
+          "x": { "type": "number", "minimum": 0, "maximum": 1 },
+          "y": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total", "occupied", "available"],
+      "properties": {
+        "total": { "type": "integer" },
+        "occupied": { "type": "integer" },
+        "available": { "type": "integer" },
+        "accuracy": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Running per-spot accuracy against dataset ground truth."
+        }
+      }
+    },
+    "best_spot": {
+      "type": ["string", "null"],
+      "description": "Nearest available spot to the entrance, excluding held spots."
+    },
+    "last_event": {
+      "type": ["object", "null"],
+      "description": "The most recent state transition, for the activity feed. Null when nothing changed.",
+      "required": ["spot_id", "from", "to"],
+      "properties": {
+        "spot_id": { "type": "string" },
+        "from": { "enum": ["occupied", "available", "held"] },
+        "to": { "enum": ["occupied", "available", "held"] }
+      }
+    }
+  }
+}

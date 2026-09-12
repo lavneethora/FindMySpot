@@ -1,0 +1,13 @@
+# Review routing. Whoever does not own the file is the one who reviews it.
+
+/parktech/      @lavneethora
+/run.py         @lavneethora
+/calibrate.py   @lavneethora
+/config/        @lavneethora
+
+/web/           @sharvapatill
+
+# Shared interface: both must look at any change here
+/contracts/     @lavneethora @sharvapatill
+/PRD.md         @lavneethora @sharvapatill
+/CLAUDE.md      @lavneethora @sharvapatill

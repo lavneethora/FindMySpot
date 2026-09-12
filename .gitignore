@@ -1,0 +1,31 @@
+# Dataset, models, and generated artifacts
+data/PKLot/
+data/*.zip
+data/*.tar.gz
+*.pt
+runs/
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+web/dist/
+web/.vite/
+
+# Environment
+.env
+.env.local
+
+# Note: config/homography.json IS committed. It is camera calibration, not machine
+# state, and a fresh clone needs it to reproduce the demo.
+
+# OS and editor
+.DS_Store
+.idea/
+.vscode/

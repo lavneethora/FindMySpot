@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Keep this fast. It exists so a reviewer can approve on a skim, not to be thorough.
+# Deliberately does not install requirements.txt: ultralytics and torch take minutes.
+# No workflow step reads untrusted event data (titles, bodies, branch names), so
+# there is nothing here to inject into.
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install linters
+        run: pip install ruff
+      - name: Lint
+        run: ruff check .
+      - name: Package imports
+        run: python -c "import parktech; print(parktech.__version__)"
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install validator
+        run: pip install jsonschema
+      - name: Mocks must match the schemas
+        run: python scripts/validate_contracts.py
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Is there a web app yet?
+        id: check
+        run: |
+          if [ -f web/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No web/package.json yet, skipping."
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.exists == 'true'
+        with:
+          node-version: "22"
+      - name: Install
+        if: steps.check.outputs.exists == 'true'
+        working-directory: web
+        run: npm install
+      - name: Build
+        if: steps.check.outputs.exists == 'true'
+        working-directory: web
+        run: npm run build
