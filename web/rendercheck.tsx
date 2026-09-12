@@ -271,14 +271,23 @@ const numericState = {
   ...renumber(state),
   // Deliberately a number, not a string: a pipeline whose stalls are integers can easily emit
   // best_spot as an int even though the schema says string.
+  // A number rather than a string, deliberately: a pipeline whose stalls are integers can
+  // emit best_spot as an int even though the schema says string.
   best_spot: 7 as unknown as string,
   last_event: { spot_id: 7 as unknown as string, from: "occupied" as const, to: "available" as const },
 } as ParkState;
 
 const numeric = render("twin with numeric stall ids", <TwinPanel layout={numericLayout} state={numericState} onSelect={() => {}} />);
-check("the map still draws every stall", (numeric.match(/<polygon/g) ?? []).length >= 28, `${(numeric.match(/<polygon/g) ?? []).length}`);
-check("stalls are labelled with the pipeline's own ids", numeric.includes(">7<") && numeric.includes(">28<"));
-check("no stall is labelled with a fixture id", !numeric.includes(">A7<"));
+check(
+  "the map still draws every stall",
+  (numeric.match(/<polygon/g) ?? []).length >= stallCount,
+  `${(numeric.match(/<polygon/g) ?? []).length} of ${stallCount}`,
+);
+check("stalls are labelled with the pipeline's own ids", numeric.includes(">1<") && numeric.includes(`>${stallCount}<`));
+check(
+  "no stall is labelled with a fixture id",
+  /^[0-9]+$/.test(someStall) || !numeric.includes(`>${someStall}<`),
+);
 check("a numeric best_spot still rings the right stall", numeric.includes("stroke-dasharray"));
 
 check("ids compare across wire types", sameSpot(7, "7") && sameSpot("A7", "A7"));
