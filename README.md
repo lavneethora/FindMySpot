@@ -4,7 +4,7 @@ A computer-vision layer for parking infrastructure that already exists. It turns
 fixed camera into a live map of which stalls are open, which one you should take, and how the
 lot gets used over time.
 
-Built for HackWesTX VII, Texas Tech University
+Built for [HackWesTX VII](https://hackwestx-vii.devpost.com/), Texas Tech University
 
 ## The problem
 
