@@ -19,7 +19,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from parktech import occupancy, pklot  # noqa: E402
+from parktech import occupancy, pklot
 
 DATA = REPO / "data" / "PKLot"
 VEHICLE_CLASSES = {2, 5, 7}  # COCO car, bus, truck
