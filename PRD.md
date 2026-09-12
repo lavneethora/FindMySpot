@@ -138,19 +138,50 @@ Ultralytics is not currently installed on this machine, so budget setup time. Us
 `model.track(persist=True, tracker="bytetrack.yaml")` for stable IDs, matching the
 `from ultralytics import YOLO` idiom already used in `football-kick-analyzer/processKickVideo.py`.
 
-**Occupancy test:** bottom-center of each box (`cx=(x1+x2)/2, cy=y2`, roughly where tires meet
-ground) tested with `cv2.pointPolygonTest` against the PKLot contour. Simpler and more robust
-than IoU for perspective views.
+**Occupancy test:** polygon overlap. For each stall, intersect its contour with every detection
+box and call it taken when a box covers at least 35% of the stall
+(`occupancy.assign_overlap`).
+
+This replaces the bottom-centre point test originally specified here, which was wrong and
+measured at 23 points worse. The reasoning behind it, that a point test beats IoU for
+perspective views, holds only when stalls sit square to the camera. PKLot's stalls are
+**angled**, and YOLO returns axis-aligned boxes, so the bottom centre of a diagonally parked
+car lands outside its own stall, usually in the driving aisle. Certain stalls were therefore
+wrong in 30 frames out of 30: not occlusion, not a missed detection, just a point falling a few
+pixels outside a rotated quad every time.
+
+Measured on 55 frames of UFPR04 strided across days, weather and times (1537 decisions,
+714 occupied / 823 free):
+
+| Method | Accuracy | False positives | False negatives |
+|---|---|---|---|
+| `point` (bottom centre in polygon) | 74.9% | - | - |
+| `centroid` (stall centre inside a box) | 98.0% | 1 | 29 |
+| **`overlap` (polygon intersection, default)** | **97.9%** | **0** | 32 |
+
+`overlap` ships despite being 0.1 point behind, which is one decision in 1537 and inside the
+noise. It produced **zero false positives across 823 free stalls**. A false positive sends a
+driver to a stall that is already taken, which is the failure that makes the product worse than
+not existing, so it is worth trading a rounding error for. All three methods stay in
+`parktech/occupancy.py` behind `scripts/accuracy.py --method`, so the claim stays reproducible.
 
 **Debounce:** occupied after 3 consecutive positive frames, available after 5 consecutive
 negative. Prevents the red/green strobing that makes a demo look broken.
 
-**The domain-gap risk:** PKLot cameras are distant, so cars may fall below roughly 30 pixels,
-which is where COCO YOLO degrades sharply. This is the same class of problem that was the real
-bottleneck on `football-kick-analyzer`. Mitigations in order: use `yolo11s` over `yolo11n`,
-raise `imgsz` to 1280, lower `conf` to about 0.2, and crop to the annotated zone rather than
-processing the full frame. **Do not fine-tune.** If detection still fails, switch cameras
-(UFPR04 vs UFPR05 vs PUCPR have different distances) before changing anything else.
+**The domain-gap risk: resolved, and it was half the story.** PKLot frames are 1280x720 and the
+cameras are distant, so at the default 640px input cars fall near the 30px floor where COCO YOLO
+degrades. The validated configuration is **`yolo11s.pt`, `imgsz=1280`, `conf=0.2`**, which took
+the point-test baseline from 50.7% to 74.9%.
+
+Worth recording that the detector was only half the problem. Settings alone never got close to
+shippable; fixing the occupancy geometry did the rest. Measure the geometry before blaming the
+model.
+
+Cost: roughly 1 to 2 seconds per frame on MPS. Irrelevant here because we replay stills under
+time compression, but it rules out real-time 30fps video on this hardware, so do not promise
+"live" on stage.
+
+**No fine-tuning was needed and none should be attempted.**
 
 **Homography:** `calibrate.py` shows frame 1, you click 4 ground-plane points, it maps them to a
 canvas rectangle and writes the 3x3 matrix. Every stall contour and every car bottom-center is
