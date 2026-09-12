@@ -47,14 +47,21 @@
     },
     "cars": {
       "type": "array",
-      "description": "Vehicles currently tracked, in normalized top-down coordinates. Already warped server side; the frontend never does geometry.",
+      "description": "Vehicles in monitored stalls, in normalized top-down coordinates. Already warped server side; the frontend never does geometry. Only cars occupying a monitored stall appear: the camera sees the whole lot, and publishing every detection scattered dots across the map with no stall under them.",
       "items": {
         "type": "object",
         "required": ["id", "x", "y"],
         "properties": {
-          "id": { "type": "integer" },
+          "id": {
+            "type": "integer",
+            "description": "Stable while the vehicle stays parked. Issued when a stall fills and retired when it empties, rather than by frame to frame motion tracking, which cannot work across frames five minutes apart."
+          },
           "x": { "type": "number", "minimum": 0, "maximum": 1 },
-          "y": { "type": "number", "minimum": 0, "maximum": 1 }
+          "y": { "type": "number", "minimum": 0, "maximum": 1 },
+          "spot_id": {
+            "type": "string",
+            "description": "Which stall this vehicle occupies. Lets the twin draw a car onto its stall without redoing the geometry."
+          }
         }
       }
     },
@@ -84,7 +91,11 @@
       "properties": {
         "spot_id": { "type": "string" },
         "from": { "enum": ["occupied", "available", "held"] },
-        "to": { "enum": ["occupied", "available", "held"] }
+        "to": { "enum": ["occupied", "available", "held"] },
+        "vehicle_id": {
+          "type": ["integer", "null"],
+          "description": "The vehicle that arrived or left, so the feed can say \"Vehicle 27 left stall 28\" rather than just naming the stall."
+        }
       }
     }
   }
