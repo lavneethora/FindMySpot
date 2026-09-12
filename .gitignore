@@ -30,3 +30,6 @@ web/.vite/
 .DS_Store
 .idea/
 .vscode/
+
+# Local editor/tooling config
+.claude/
