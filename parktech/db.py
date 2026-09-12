@@ -59,6 +59,20 @@ SELECT create_hypertable('parking_events', 'time', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS parking_events_spot_time
     ON parking_events (camera_id, spot_id, time DESC);
 
+-- Occupancy level, one row per processed frame. The events table stores
+-- transitions, which is right for an activity feed but cannot produce a
+-- level curve: deltas alone do not know where the count started. Recording
+-- the level directly is 288 rows a day and removes the guesswork.
+CREATE TABLE IF NOT EXISTS occupancy_levels (
+    time        TIMESTAMPTZ NOT NULL,
+    camera_id   TEXT        NOT NULL,
+    occupied    INTEGER     NOT NULL,
+    available   INTEGER     NOT NULL,
+    total       INTEGER     NOT NULL
+);
+
+SELECT create_hypertable('occupancy_levels', 'time', if_not_exists => TRUE);
+
 CREATE TABLE IF NOT EXISTS spot_holds (
     spot_id     TEXT        NOT NULL,
     camera_id   TEXT        NOT NULL,
@@ -85,6 +99,21 @@ WITH NO DATA;
 """
 
 
+LEVEL_AGGREGATE = """
+CREATE MATERIALIZED VIEW occupancy_level_5min
+WITH (timescaledb.continuous) AS
+SELECT
+    time_bucket('5 minutes', time) AS bucket,
+    camera_id,
+    avg(occupied)::real  AS avg_occupied,
+    max(occupied)        AS peak_occupied,
+    max(total)           AS total
+FROM occupancy_levels
+GROUP BY bucket, camera_id
+WITH NO DATA;
+"""
+
+
 def init():
     """Create the schema. Safe to run repeatedly."""
     with connect() as conn:
@@ -105,6 +134,19 @@ def init():
                 "schedule_interval => INTERVAL '1 minute')"
             )
 
+        has_levels = conn.execute(
+            "SELECT 1 FROM timescaledb_information.continuous_aggregates "
+            "WHERE view_name = 'occupancy_level_5min'"
+        ).fetchone()
+        if not has_levels:
+            conn.execute(LEVEL_AGGREGATE)
+            conn.execute(
+                "SELECT add_continuous_aggregate_policy('occupancy_level_5min', "
+                "start_offset => NULL, "
+                "end_offset => INTERVAL '1 minute', "
+                "schedule_interval => INTERVAL '1 minute')"
+            )
+
 
 def refresh_analytics():
     """Materialise the aggregate now rather than waiting for the policy.
@@ -114,6 +156,30 @@ def refresh_analytics():
     """
     with connect() as conn:
         conn.execute("CALL refresh_continuous_aggregate('occupancy_5min', NULL, NULL)")
+        conn.execute(
+            "CALL refresh_continuous_aggregate('occupancy_level_5min', NULL, NULL)"
+        )
+
+
+def record_level(camera_id, when, occupied, available, total):
+    """One row per frame. Cheap, and it is what makes a real curve possible."""
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO occupancy_levels "
+            "(time, camera_id, occupied, available, total) VALUES (%s,%s,%s,%s,%s)",
+            (when, camera_id, occupied, available, total),
+        )
+
+
+def occupancy_levels(camera_id, hours=24):
+    """The actual occupancy curve, off the level aggregate."""
+    with connect() as conn:
+        return conn.execute(
+            "SELECT bucket, avg_occupied, peak_occupied, total "
+            "FROM occupancy_level_5min WHERE camera_id = %s "
+            "AND bucket > now() - %s::interval ORDER BY bucket",
+            (camera_id, f"{hours} hours"),
+        ).fetchall()
 
 
 def record_changes(camera_id, when, changes, confidences=None):
