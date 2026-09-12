@@ -22,6 +22,7 @@ import { AnalyticsStrip } from "./src/components/AnalyticsStrip";
 import type { LoggedEvent } from "./src/hooks/useActivityLog";
 import { labelSize, SCALE, viewBoxFor } from "./src/lib/geometry";
 import { MAP_ASPECT } from "./src/components/twin/TopDownMap";
+import { homographyFrom, project, SIMULATED_CAMERA } from "./src/lib/perspective";
 
 const layout = rawLayout as unknown as Layout;
 const state = rawState as unknown as ParkState;
@@ -37,7 +38,9 @@ function check(name: string, ok: boolean, detail = "") {
 
 function render(name: string, node: React.ReactElement): string {
   try {
-    const html = renderToString(node);
+    // renderToString separates adjacent text nodes with an empty comment. That marker does
+    // not exist in the browser DOM, so strip it and assert on what a viewer actually sees.
+    const html = renderToString(node).replaceAll("<!-- -->", "");
     check(`${name} renders`, html.length > 0);
     return html;
   } catch (cause) {
@@ -67,8 +70,21 @@ const twin = render("twin panel with data", <TwinPanel layout={layout} state={st
 check("twin panel counts the stalls", twin.includes("28 stalls"));
 render("twin panel with no layout", <TwinPanel layout={null} state={null} />);
 
-render("vision panel with accuracy", <VisionPanel accuracy={0.942} />);
-render("vision panel with null accuracy", <VisionPanel accuracy={null} />);
+const simulated = render("vision panel, mock mode", <VisionPanel layout={layout} state={state} connection="mock" />);
+check("the simulated view is labelled as simulated", simulated.includes("Simulated view"));
+check("the simulated view says plainly it is not footage", simulated.toLowerCase().includes("not camera footage"));
+check("the simulated view draws the detections", simulated.includes("car 0.93"));
+check("the simulated view shows track ids", simulated.includes("id 12"));
+
+const liveFeed = render("vision panel, live mode", <VisionPanel layout={layout} state={state} connection="live" />);
+check("the live panel uses the MJPEG stream", liveFeed.includes('src="/video"'));
+check("the live panel is never labelled simulated", !liveFeed.includes("Simulated view"));
+check("the live panel says annotations come from the pipeline", liveFeed.includes("drawn into the frames by the pipeline"));
+
+const dropped = render("vision panel, pipeline lost", <VisionPanel layout={layout} state={state} connection="fallback" />);
+check("a dropped pipeline falls back to the labelled simulation", dropped.includes("Simulated view"));
+
+render("vision panel with no layout", <VisionPanel layout={null} state={null} connection="mock" />);
 render("analytics strip", <AnalyticsStrip />);
 
 render("activity feed, empty", <ActivityFeed events={[]} />);
@@ -136,6 +152,39 @@ check("the map marks the entrance", map.includes("Entrance"));
 check("the map describes itself for a screen reader", map.includes('role="img"') && map.includes("available"));
 check("the recommended stall is ringed", map.includes("stroke-dasharray"));
 check("held stalls would carry a pattern", map.includes("pattern-stripe"));
+
+// ---- simulated camera perspective --------------------------------------------------
+// Mock only, but it is real projective geometry and wrong geometry would look like a bug in
+// the pipeline rather than in the stand in.
+const cam = homographyFrom(SIMULATED_CAMERA.src, SIMULATED_CAMERA.dst);
+
+let worstCorner = 0;
+SIMULATED_CAMERA.src.forEach((p, i) => {
+  const got = project(cam, p);
+  worstCorner = Math.max(worstCorner, Math.hypot(got.x - SIMULATED_CAMERA.dst[i][0], got.y - SIMULATED_CAMERA.dst[i][1]));
+});
+check("the four camera corners map onto their targets", worstCorner < 1e-9, `worst ${worstCorner.toExponential(2)}`);
+
+const l0 = project(cam, [0, 0.5]);
+const l1 = project(cam, [0.5, 0.5]);
+const l2 = project(cam, [1, 0.5]);
+const bend = (l1.x - l0.x) * (l2.y - l0.y) - (l1.y - l0.y) * (l2.x - l0.x);
+check("a straight row of stalls stays straight", Math.abs(bend) < 1e-9, `bend ${bend.toExponential(2)}`);
+
+const farEdge = project(cam, [0.5, 0]);
+const nearEdge = project(cam, [0.5, 1]);
+check("things further from the camera render smaller", nearEdge.scale > farEdge.scale * 1.2, `${nearEdge.scale.toFixed(3)} vs ${farEdge.scale.toFixed(3)}`);
+check("the far edge sits higher in frame than the near edge", farEdge.y < nearEdge.y);
+check("row A renders behind row B", project(cam, [0.5, 0.25]).y < project(cam, [0.5, 0.71]).y);
+
+let offFrame = 0;
+for (let x = 0; x <= 1.0001; x += 0.05) {
+  for (let y = 0; y <= 1.0001; y += 0.05) {
+    const q = project(cam, [x, y]);
+    if (!Number.isFinite(q.x) || !Number.isFinite(q.y) || q.x < -0.2 || q.x > 1.2 || q.y < -0.2 || q.y > 1.2) offFrame += 1;
+  }
+}
+check("the whole lot projects into frame", offFrame === 0, `${offFrame} points off frame`);
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
