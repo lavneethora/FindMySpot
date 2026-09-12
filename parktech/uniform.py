@@ -21,9 +21,13 @@ import numpy as np
 # glance instead of looking like a bar chart.
 STALL_ASPECT = 2.0
 
-# Smallest separation drawn between two rows, in normalized units. Stops rows
-# fusing together when their annotation polygons overlap.
-MIN_ROW_GAP = 0.022
+# Gaps between rows, in normalized units. Real lots are built to a standard:
+# every driving aisle is the same width, and every planted median is the same
+# width. Taking these from the camera instead makes far aisles look narrower
+# than near ones, which is perspective leaking into a map that is supposed to
+# have none.
+AISLE_GAP = 0.085
+GRASS_GAP = 0.030
 
 # Rough physical size of the monitored area, used to turn normalized distances
 # into metres for display and for ranking the nearest free stall.
@@ -131,7 +135,7 @@ def rows_from_config(spaces, spec):
     return rows
 
 
-def build(spaces, margin=0.06, row_spec=None):
+def build(spaces, margin=0.06, row_spec=None, drivable_gaps=None):
     """Return {spot_id: {polygon, centroid, row, index}} in 0..1 space.
 
     Stall sizes are uniform, but row spacing and each row's horizontal offset
@@ -174,14 +178,16 @@ def build(spaces, margin=0.06, row_spec=None):
     row_top = [norm_y(min(p[1] for s in row for p in s.contour)) for row in rows]
     row_bot = [norm_y(max(p[1] for s in row for p in s.contour)) for row in rows]
     stall_h = float(np.median([b - t for t, b in zip(row_top, row_bot)]))
-    edge_gaps = [max(0.0, t - b) for b, t in zip(row_bot, row_top[1:])]
 
-    # Adjacent rows can have overlapping annotation polygons even where there
-    # is physically a grass strip between them, because the stalls are traced
-    # generously. Computing the gap from polygon edges then reports zero and
-    # the map shows two rows fused together. Keep a floor so a real separation
-    # stays visible.
-    edge_gaps = [max(g, MIN_ROW_GAP) for g in edge_gaps]
+    # Every aisle the same width, every median the same width. A lot is built
+    # to a standard, and measuring the gaps off the camera reproduced its
+    # perspective: the far aisle came out half the width of the near one even
+    # though a car needs the same room in both.
+    drivable = set(drivable_gaps or [])
+    edge_gaps = [
+        AISLE_GAP if i in drivable else GRASS_GAP
+        for i in range(len(rows) - 1)
+    ]
 
     # Restack from the first row's real top, so every gap is the true one.
     tops = [row_top[0]]
@@ -228,31 +234,46 @@ def to_layout(spaces, camera_id, row_spec=None, drivable_gaps=None,
     median would be worse than drawing no route at all, so rows separated by
     grass get no waypoint between them.
     """
-    layout, rows = build(spaces, row_spec=row_spec)
+    layout, rows = build(spaces, row_spec=row_spec, drivable_gaps=drivable_gaps)
     if not layout:
         return {}
 
     drivable = set(drivable_gaps or [])
 
-    # Entrance sits below the lot, centred on the nearest row.
-    last_row = rows[-1]
-    entrance = {
-        "x": round(float(np.mean([layout[s.id]["centroid"][0] for s in last_row])), 4),
-        "y": 0.98,
-    }
+    # A lot is entered from a road, then you drive along a feeder lane and turn
+    # into an aisle. Modelling the entrance as a lone point at the bottom with
+    # a line straight to a stall drew routes across parked cars and grass.
+    #
+    # So: one vertical feeder lane down the left edge, connected to the mouth
+    # of every drivable aisle, with the entrance at the bottom of the feeder.
+    lane_x = 0.035
+    entrance = {"x": lane_x, "y": 0.97}
 
-    nodes = {"entrance": [entrance["x"], entrance["y"]]}
+    nodes = {"entrance": [lane_x, entrance["y"]]}
     edges = []
-    previous = "entrance"
+
+    aisle_names = []
     for gap_index in sorted(drivable):
         if gap_index + 1 >= len(rows):
             continue
         above = max(layout[s.id]["polygon"][2][1] for s in rows[gap_index])
         below = min(layout[s.id]["polygon"][0][1] for s in rows[gap_index + 1])
-        name = f"aisle_{gap_index}"
-        nodes[name] = [0.5, round((above + below) / 2, 4)]
-        edges.append([previous, name])
-        previous = name
+        mid_y = round((above + below) / 2, 4)
+
+        mouth = f"lane_{gap_index}"
+        nodes[mouth] = [lane_x, mid_y]
+        aisle_names.append((mid_y, mouth, gap_index))
+
+    # Feeder lane runs bottom to top, entrance first.
+    aisle_names.sort(reverse=True)
+    previous = "entrance"
+    for mid_y, mouth, gap_index in aisle_names:
+        edges.append([previous, mouth])
+        previous = mouth
+        # The aisle itself, running across the lot from the feeder lane.
+        far = f"aisle_{gap_index}"
+        nodes[far] = [0.96, mid_y]
+        edges.append([mouth, far])
 
     spots = {}
     for spot_id, cell in layout.items():
