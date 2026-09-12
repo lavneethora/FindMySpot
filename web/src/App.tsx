@@ -1,5 +1,7 @@
+import { useCallback } from "react";
 import { useParkTech } from "./hooks/useParkTech";
 import { useActivityLog } from "./hooks/useActivityLog";
+import { useHold } from "./hooks/useHold";
 import { Mesh } from "./components/ui/Mesh";
 import { AppHeader } from "./components/AppHeader";
 import { SummaryStrip } from "./components/SummaryStrip";
@@ -7,10 +9,15 @@ import { VisionPanel } from "./components/VisionPanel";
 import { TwinPanel } from "./components/TwinPanel";
 import { AnalyticsStrip } from "./components/AnalyticsStrip";
 import { ActivityFeed } from "./components/ActivityFeed";
+import { HoldCard } from "./components/HoldCard";
 
 export default function App() {
-  const { layout, state, connection, error } = useParkTech();
+  const { layout, state, connection, error, hold } = useParkTech();
   const events = useActivityLog(state);
+  const holding = useHold(hold, state);
+
+  // Stable, so the memoized stall layer is not invalidated on every state message.
+  const onSelect = useCallback((spotId: string) => void holding.claim(spotId), [holding.claim]);
 
   return (
     <>
@@ -34,12 +41,21 @@ export default function App() {
             right, so these two stay adjacent and equal until the viewport is genuinely narrow. */}
         <div className="grid gap-5 xl:grid-cols-2">
           <VisionPanel layout={layout} state={state} connection={connection} />
-          <TwinPanel layout={layout} state={state} />
+          <TwinPanel
+            layout={layout}
+            state={state}
+            heldSpot={holding.hold?.spotId ?? null}
+            route={holding.hold?.route}
+            onSelect={onSelect}
+          />
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <AnalyticsStrip />
-          <ActivityFeed events={events} />
+          <div className="flex flex-col gap-5">
+            <HoldCard layout={layout} state={state} holding={holding} />
+            <ActivityFeed events={events} />
+          </div>
         </div>
 
         <footer className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-ink/35">
