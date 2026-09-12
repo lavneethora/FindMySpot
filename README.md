@@ -47,7 +47,7 @@ The demo runs on the **PKLot** benchmark (fixed cameras, 5-minute intervals, wit
 polygon coordinates and occupied/vacant ground truth). That choice is deliberate: it means the
 accuracy number reported in the UI is measured against ground truth rather than asserted.
 
-PKLot is a Brazilian parking lot, not the Innovation Hub. The demo says so out loud.
+[PKLot](https://www.researchgate.net/publication/273479425_PKLot_-_A_Robust_Dataset_for_Parking_Lot_Classification) Dataset is a Brazilian parking lot, we have used to test out our system.
 
 ## Repo layout
 
