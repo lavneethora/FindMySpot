@@ -1,5 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Hold, ParkState, Point } from "../lib/contract";
+import type { Hold, ParkState, Point, SpotStatus } from "../lib/contract";
+
+export type HoldVerdict = "keep" | "confirm" | "release";
+
+/**
+ * Given what the server last said about the stall, decide what happens to the hold.
+ *
+ * Pulled out of the effect so it can be tested directly, because the race it exists to solve
+ * is subtle: the claim resolves before the next state message arrives, so for one tick the
+ * stall still reads "available". Treating that as a refusal would cancel every hold instantly.
+ *
+ * Rules: no information is never a reason to release. Only an affirmative status that is not
+ * "held", seen after the hold has been confirmed at least once, releases it. Anything else is
+ * left to the expiry timer.
+ */
+export function holdVerdict(status: SpotStatus | undefined, confirmed: boolean): HoldVerdict {
+  if (status === undefined) return "keep";
+  if (status === "held") return confirmed ? "keep" : "confirm";
+  return confirmed ? "release" : "keep";
+}
 
 export interface ActiveHold {
   spotId: string;
@@ -54,12 +73,9 @@ export function useHold(place: (spotId: string) => Promise<Hold>, state: ParkSta
 
   useEffect(() => {
     if (!hold || !state) return;
-    const status = state.spots[hold.spotId]?.status;
-    if (status === "held") {
-      if (!confirmed) setConfirmed(true);
-      return;
-    }
-    if (confirmed) {
+    const verdict = holdVerdict(state.spots[hold.spotId]?.status, confirmed);
+    if (verdict === "confirm") setConfirmed(true);
+    if (verdict === "release") {
       setHold(null);
       setConfirmed(false);
     }
