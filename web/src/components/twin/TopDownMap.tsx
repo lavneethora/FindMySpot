@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Layout, ParkState } from "../../lib/contract";
 import { SCALE, units, viewBoxFor, viewBoxString } from "../../lib/geometry";
 import type { Point } from "../../lib/contract";
@@ -7,7 +7,10 @@ import { RouteLayer } from "./RouteLayer";
 import { CarLayer } from "./CarLayer";
 import { StallLayer, statusSignature } from "./StallLayer";
 
-/** Matches the aspect of the box the map is drawn into, so the SVG fills it exactly. */
+/**
+ * Shape assumed before the element has been measured, and on a server render where there is
+ * nothing to measure. The real value is read from the box the map is drawn into.
+ */
 export const MAP_ASPECT = 4 / 3;
 
 interface TopDownMapProps {
@@ -19,7 +22,32 @@ interface TopDownMapProps {
 }
 
 export function TopDownMap({ layout, state, heldSpot = null, route, onSelect }: TopDownMapProps) {
-  const box = useMemo(() => viewBoxFor(layout, MAP_ASPECT), [layout]);
+  const svg = useRef<SVGSVGElement>(null);
+  const [aspect, setAspect] = useState(MAP_ASPECT);
+
+  /**
+   * Measure the box rather than assume it. The panel changes shape with the viewport, and a
+   * viewBox computed for the wrong aspect means the lot is letterboxed inside its own panel
+   * with dead bands down the sides. Reading the real size keeps the asphalt edge to edge at
+   * any window shape.
+   */
+  useEffect(() => {
+    const element = svg.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver((entries) => {
+      const size = entries[0]?.contentRect;
+      if (!size || size.width <= 0 || size.height <= 0) return;
+      const next = size.width / size.height;
+      // Ignore sub pixel churn, or every scroll bar appearing retriggers a viewBox change.
+      setAspect((current) => (Math.abs(current - next) < 0.005 ? current : next));
+    });
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const box = useMemo(() => viewBoxFor(layout, aspect), [layout, aspect]);
   const signature = statusSignature(state);
   const [entranceX, entranceY] = units([layout.entrance.x, layout.entrance.y]);
 
@@ -27,6 +55,7 @@ export function TopDownMap({ layout, state, heldSpot = null, route, onSelect }: 
 
   return (
     <svg
+      ref={svg}
       viewBox={viewBoxString(box)}
       className="h-full w-full"
       role="img"
