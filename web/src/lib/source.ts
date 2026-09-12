@@ -9,13 +9,14 @@
  * showing an empty lot.
  */
 
-import type { Hold, Layout, ParkState, Point } from "./contract";
+import type { Analytics, Hold, Layout, ParkState, Point } from "./contract";
 import { MockPipeline } from "./mock";
 
 export type Connection = "connecting" | "live" | "mock" | "fallback";
 
 export interface Source {
   getLayout(): Promise<Layout>;
+  getAnalytics(): Promise<Analytics>;
   hold(spotId: string): Promise<Hold>;
   start(onState: (state: ParkState) => void, onConnection: (c: Connection) => void): void;
   stop(): void;
@@ -86,6 +87,10 @@ class MockSource implements Source {
     return this.pipeline.getLayout();
   }
 
+  getAnalytics(): Promise<Analytics> {
+    return this.pipeline.getAnalytics();
+  }
+
   hold(spotId: string): Promise<Hold> {
     return this.pipeline.hold(spotId);
   }
@@ -118,6 +123,13 @@ class LiveSource implements Source {
     const response = await fetch("/api/layout");
     if (!response.ok) throw new Error(`GET /api/layout returned ${response.status}`);
     return (await response.json()) as Layout;
+  }
+
+  async getAnalytics(): Promise<Analytics> {
+    if (this.fallback) return this.fallback.getAnalytics();
+    const response = await fetch("/api/analytics");
+    if (!response.ok) throw new Error(`GET /api/analytics returned ${response.status}`);
+    return (await response.json()) as Analytics;
   }
 
   async hold(spotId: string): Promise<Hold> {
