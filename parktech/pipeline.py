@@ -17,11 +17,13 @@ from parktech import db, occupancy, pklot
 
 VEHICLE_CLASSES = {2, 5, 7}  # COCO car, bus, truck
 
-# Validated on UFPR04: 97.9% per-stall accuracy, zero false positives.
+# Validated on PUCPR: 97.1% per-stall accuracy, 4 false positives in 1138 free
+# stalls. PUCPR has 100 stalls in the same 1280x720 frame, so each car is much
+# smaller than on UFPR04 and the smaller model at 1280 collapsed to 63%.
 # See scripts/accuracy.py and the PRD before changing any of these.
-MODEL = "yolo11s.pt"
-IMGSZ = 1280
-CONF = 0.2
+MODEL = "yolo11m.pt"
+IMGSZ = 1920
+CONF = 0.15
 OVERLAP_THRESHOLD = 0.35
 
 
@@ -65,6 +67,21 @@ class Pipeline:
         # honest and what the activity feed actually wants to say.
         self._vehicle_ids = {}
         self._next_vehicle_id = 1
+
+    def seek(self, time_of_day):
+        """Rotate the frame list so replay begins near a given clock time.
+
+        Rotates rather than truncates, so the replay still covers a whole day
+        and still loops; it just does not open on an empty pre dawn lot.
+        """
+        target = time_of_day.strip()
+        for index, (jpg, _xml) in enumerate(self.frames):
+            captured = pklot.capture_time(jpg)
+            if captured and captured.strftime("%H:%M") >= target:
+                self.frames = self.frames[index:] + self.frames[:index]
+                print(f"replay starts at {captured.strftime('%Y-%m-%d %H:%M')}")
+                return
+        print(f"no frame at or after {target}, starting from the beginning")
 
     def subscribe(self, callback):
         with self._lock:
@@ -136,6 +153,15 @@ class Pipeline:
                 ),
             }
 
+        # Record the level every frame, not just on change. Transitions alone
+        # cannot produce a curve, because deltas do not know where the count
+        # started. One row per frame is 288 a day.
+        occupied_now = sum(1 for v in state.values() if v)
+        db.record_level(
+            self.camera_id, captured, occupied_now,
+            len(state) - occupied_now, len(state),
+        )
+
         holds = db.active_holds(self.camera_id)
         cars = self._project_cars(boxes, matches, state)
         self.annotated = self._annotate(image, spaces, boxes, state, holds)
@@ -178,19 +204,21 @@ class Pipeline:
         differently would make vehicles drift off their stalls on the map, which
         looks exactly like a tracking bug and is not one.
         """
-        if self.projector is None:
-            return []
         cars = []
         for spot_id, box_idx in matches.items():
             if box_idx is None or not state.get(spot_id):
                 continue
-            x, y = self.projector(occupancy.bottom_centre(boxes[box_idx]))
-            if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+            cell = self.layout.get(spot_id)
+            if not cell:
                 continue
+            # Sit the car on the stall it occupies. The map is a uniform
+            # schematic, so projecting camera pixels into it independently
+            # would place vehicles beside their own stalls.
+            x, y = cell["centroid"]
             cars.append({
                 "id": self._vehicle_ids.get(spot_id, 0),
-                "x": round(x, 4),
-                "y": round(y, 4),
+                "x": x,
+                "y": y,
                 "spot_id": spot_id,
             })
         return cars
