@@ -1,5 +1,5 @@
 import { memo } from "react";
-import type { Layout, ParkState } from "../../lib/contract";
+import { sameSpot, type Layout, type ParkState } from "../../lib/contract";
 import { labelSize, path, SCALE, units } from "../../lib/geometry";
 import { styleFor, type DisplayStatus } from "../../lib/status";
 
@@ -26,8 +26,8 @@ function StallLayerInner({ layout, state, bestSpot, heldSpot, onSelect }: StallL
         const style = styleFor(status);
         const [cx, cy] = units(spot.centroid);
         const size = labelSize(spot.polygon);
-        const isBest = id === bestSpot;
-        const isHeld = id === heldSpot;
+        const isBest = sameSpot(id, bestSpot);
+        const isHeld = sameSpot(id, heldSpot);
         const points = path(spot.polygon);
         const claimable = status === "available" && Boolean(onSelect);
 
@@ -116,12 +116,18 @@ export const StallLayer = memo(
     a.onSelect === b.onSelect,
 );
 
-/** Cheap string that changes when, and only when, some stall changes status. */
+/**
+ * Cheap string that changes when, and only when, some stall changes status.
+ *
+ * Separated rather than concatenated. Stall ids come from the pipeline and nothing here gets
+ * to assume their shape: with ids like "A1" the letters and the status initials happen not to
+ * collide, but that is luck, not a property, and the ids are just object keys we are handed.
+ */
 export function statusSignature(state: ParkState | null): string {
   if (!state) return "";
-  let out = "";
-  for (const [id, spot] of Object.entries(state.spots)) out += `${id}${spot.status[0]}`;
-  return out;
+  const parts: string[] = [];
+  for (const [id, spot] of Object.entries(state.spots)) parts.push(`${id}=${spot.status}`);
+  return parts.join("|");
 }
 
 export const MAP_SCALE = SCALE;
