@@ -134,9 +134,16 @@ hour 1, so neither person is ever blocked on the other.
 ## Key Technical Decisions
 
 **Detection:** COCO-pretrained `yolo11n.pt`, no training. Classes 2/5/7 (car, bus, truck).
-Ultralytics is not currently installed on this machine, so budget setup time. Use
-`model.track(persist=True, tracker="bytetrack.yaml")` for stable IDs, matching the
-`from ultralytics import YOLO` idiom already used in `football-kick-analyzer/processKickVideo.py`.
+
+**Vehicle identity: not ByteTrack.** This PRD originally specified
+`model.track(persist=True, tracker="bytetrack.yaml")` for stable ids. That cannot work here.
+ByteTrack associates detections by motion continuity between consecutive video frames, and PKLot
+frames are **five minutes apart**. A car that left and a different car that arrived are
+indistinguishable to it, so it would hand out confident, meaningless numbers.
+
+Identity is tied to stall occupancy instead: a vehicle is issued a number when a stall fills and
+keeps it until that stall empties. For parked cars this is both more honest and more useful,
+because it is what the activity feed wants to say anyway: "Vehicle 27 left stall 28".
 
 **Occupancy test:** polygon overlap. For each stall, intersect its contour with every detection
 box and call it taken when a box covers at least 35% of the stall
@@ -164,6 +171,24 @@ noise. It produced **zero false positives across 823 free stalls**. A false posi
 driver to a stall that is already taken, which is the failure that makes the product worse than
 not existing, so it is worth trading a rounding error for. All three methods stay in
 `parktech/occupancy.py` behind `scripts/accuracy.py --method`, so the claim stays reproducible.
+
+### Accuracy by weather
+
+The demo script says "including rain". That is now measured rather than hoped for. UFPR04,
+107 frames, 2984 decisions:
+
+| Weather | Frames | Decisions | Accuracy | False positives |
+|---|---|---|---|---|
+| Sunny | 40 | 1117 | 97.7% | 0 |
+| Cloudy | 33 | 921 | 98.7% | 2 |
+| **Rainy** | 34 | 946 | **98.4%** | 1 |
+
+Rain scores slightly **better** than sun, most likely because overcast light removes the hard
+shadows that blur a car's boundary against the tarmac. Three false positives in 2984 decisions
+across every condition.
+
+Still unmeasured: UFPR05 and PUCPR, and night, which PKLot does not cover at all. Say so if
+asked rather than implying the number generalises.
 
 **Debounce:** occupied after 3 consecutive positive frames, available after 5 consecutive
 negative. Prevents the red/green strobing that makes a demo look broken.
@@ -470,7 +495,8 @@ happening around us."
 3. Point right: "every stall has a digital counterpart"
 4. Stay quiet while a car leaves. Left shows exiting, right flips red to green, count ticks up
 5. Click the green stall: hold goes amber, route animates
-6. "94% per-stall accuracy, measured against ground truth across a full day including rain"
+6. "98% per-stall accuracy, measured against ground truth. 97.7% in sun, 98.4% in rain, with
+   three false positives in nearly three thousand decisions"
 7. Analytics: "and the lot now has a utilization history it never had"
 
 **Honesty slide, non-negotiable:** state plainly that the footage is the PKLot benchmark, not
@@ -481,8 +507,9 @@ admitting it.
 **Pre-built Q&A:**
 - *Two people click the same spot?* Soft holds, with the amber state on screen
 - *Why not per-stall sensors?* Hardware at every stall versus one camera covering many
-- *Night, rain, snow?* PKLot includes rainy and cloudy days and the accuracy number covers them.
-  Night is unvalidated and would need IR hardware. Say so.
+- *Night, rain, snow?* Rain is measured at 98.4% and cloud at 98.7%, both from the dataset's own
+  labelled rainy and cloudy days. Night is **not** covered by PKLot at all and is unvalidated;
+  it would need IR-capable hardware. Say that plainly rather than implying the number covers it.
 - *Occlusion?* Overlapping camera zones in production. Show the architecture graphic
 - *Privacy?* Only occupancy state leaves the device. No faces, no plates, no video retained
 - *How is this different from SpotHero or ParkMobile?* They handle reservations and payment.
