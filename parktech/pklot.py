@@ -20,6 +20,7 @@ rather than guessed at.
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 CAMERAS = ("UFPR04", "UFPR05", "PUCPR")
@@ -52,6 +53,23 @@ def parse_spaces(xml_path):
             )
         )
     return spaces
+
+
+def capture_time(frame_path):
+    """When the frame was actually taken, from its filename.
+
+    PKLot names frames 2012-12-12_10_00_05.jpg. Using this rather than wall
+    clock is what makes the stored history a real occupancy curve spanning the
+    captured day, instead of a curve of whenever we happened to replay it.
+
+    Returns None when the name does not parse, so the caller can fall back.
+    """
+    try:
+        return datetime.strptime(
+            Path(frame_path).stem, "%Y-%m-%d_%H_%M_%S"
+        ).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
 
 def camera_dirs(data_root, camera=None):
