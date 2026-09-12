@@ -14,12 +14,12 @@ import type { Car, Hold, Layout, ParkState, Point, Transition } from "./contract
 const layout = rawLayout as unknown as Layout;
 const sequence = rawSequence as unknown as ParkState[];
 
-/** One PKLot frame every 2 s, so the 10 frame fixture loops in 20 s. */
-const FRAME_MS = 2000;
+/** One captured frame every 2 s, so a ten frame fixture loops in twenty seconds. */
+export const FRAME_MS = 2000;
 /** 8 Hz emission. Enough for smooth car motion without flooding React. */
-const TICK_MS = 125;
+export const TICK_MS = 125;
 /** Matches the 90 second soft hold in the PRD. */
-const HOLD_MS = 90_000;
+export const HOLD_MS = 90_000;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
