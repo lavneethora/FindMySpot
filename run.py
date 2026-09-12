@@ -39,15 +39,22 @@ def build_layout(frames, camera_id):
     image = cv2.imread(str(jpg))
     height, width = image.shape[:2]
 
-    homography = None
+    matrix = None
     if HOMOGRAPHY.exists():
         with open(HOMOGRAPHY) as fh:
-            homography = json.load(fh).get("matrix")
+            matrix = json.load(fh).get("matrix")
+        print("homography: loaded, top-down view is rectified")
+    else:
+        print("homography: none yet, twin will inherit the camera angle. "
+              "Run python calibrate.py")
 
-    return layout_mod.from_spaces(
+    # One projector for stalls and for live vehicles, so they cannot disagree.
+    projector = layout_mod.make_projector(spaces, (width, height), matrix)
+    built = layout_mod.from_spaces(
         spaces, (width, height), camera_id,
-        lot_name=f"PKLot {camera_id}", homography=homography,
+        lot_name=f"PKLot {camera_id}", projector=projector,
     )
+    return built, projector
 
 
 def main():
@@ -86,8 +93,9 @@ def main():
     pipeline = Pipeline(
         dirs[0], args.camera, fps=args.fps, loop=not args.no_loop
     )
-    layout = build_layout(pipeline.frames, args.camera)
+    layout, projector = build_layout(pipeline.frames, args.camera)
     pipeline.layout = layout["spots"]
+    pipeline.projector = projector
     print(f"camera {args.camera}: {len(pipeline.frames)} annotated frames")
 
     if args.headless:
