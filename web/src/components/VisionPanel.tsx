@@ -24,7 +24,7 @@ export function VisionPanel({ layout, state, connection }: VisionPanelProps) {
   const stand_in = layout ? (
     <SimulatedCamera layout={layout} state={state} />
   ) : (
-    <Placeholder what="Waiting for the lot layout." ratio="16 / 10" />
+    <Placeholder what="Waiting for the lot layout." ratio="var(--vision-aspect)" />
   );
 
   return (
@@ -41,7 +41,7 @@ export function VisionPanel({ layout, state, connection }: VisionPanelProps) {
         }
       />
 
-      <div className="relative overflow-hidden rounded-panel border border-card-border bg-[#22201D]" style={{ aspectRatio: "16 / 10" }}>
+      <div className="relative overflow-hidden rounded-panel border border-card-border bg-[#22201D]" style={{ aspectRatio: "var(--vision-aspect)" }}>
         {simulated ? stand_in : <CameraFeed fallback={stand_in} />}
 
         {/* Never let a reconstruction pass for footage. This badge is not conditional on
