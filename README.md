@@ -78,19 +78,6 @@ cd web && npm install && npm run dev
 The frontend runs standalone against mock data with `VITE_USE_MOCK=1`, so it never needs the
 Python pipeline running.
 
-## Working on this
+## Team
 
-Two people, two lanes, two machines.
-
-| Path | Owner |
-|---|---|
-| `run.py`, `calibrate.py`, `parktech/`, `config/` | Lavneet |
-| `web/` | Sharva |
-| `contracts/` | shared, additive changes only |
-
-**Never push to `main`.** Every change is a PR reviewed by the other teammate. Branch as
-`vision/<thing>` or `web/<thing>`, one file per commit, then `gh pr create`.
-
-If you are blocked on an unmerged PR, stack the next branch on top of it rather than waiting.
-
-Full detail, including the build timeline and the state contract, is in [PRD.md](PRD.md).
+@lavneethora and @sharvapatill
