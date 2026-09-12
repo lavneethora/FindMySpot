@@ -11,6 +11,7 @@ import rawLayout from "@contracts/mock_layout.json";
 import rawSequence from "@contracts/mock_sequence.json";
 import { FRAME_MS, HOLD_MS, MockPipeline, TICK_MS } from "./src/lib/mock";
 import type { Layout, ParkState, SpotStatus } from "./src/lib/contract";
+import { reconstruct } from "./src/lib/analytics";
 
 const layout = rawLayout as unknown as Layout;
 const frames = rawSequence as unknown as ParkState[];
@@ -238,6 +239,22 @@ if (arrival) {
 } else {
   console.log("  skip no stall fills during the sequence, so arrival release is untested");
 }
+
+// ---- synthesised history ---------------------------------------------------------------
+const p6 = open();
+const live = p6.compose(0);
+const history = await (p6 as unknown as { getAnalytics(): Promise<{ buckets: { t: string; became_occupied: number; became_available: number }[] }> }).getAnalytics();
+check("mock mode serves a history", history.buckets.length > 1, `${history.buckets.length} buckets`);
+
+const curve = reconstruct(history.buckets, live.summary.occupied, live.summary.total);
+check(
+  "the reconstructed curve ends where the lot actually is",
+  curve.points[curve.points.length - 1].occupied === live.summary.occupied,
+  `${curve.points[curve.points.length - 1].occupied} vs ${live.summary.occupied}`,
+);
+check("the whole synthesised window is explainable", curve.incomplete === false);
+check("the curve never exceeds capacity", curve.points.every((q) => q.occupied >= 0 && q.occupied <= live.summary.total));
+check("the synthesised day has a busy period and a quiet one", (curve.peak?.occupied ?? 0) > Math.min(...curve.points.map((q) => q.occupied)));
 
 const served = await open().getLayout();
 check("the pipeline serves the layout it was built from", Object.keys(served.spots).length === ids.length);
