@@ -23,6 +23,8 @@ import type { LoggedEvent } from "./src/hooks/useActivityLog";
 import { labelSize, SCALE, viewBoxFor } from "./src/lib/geometry";
 import { MAP_ASPECT } from "./src/components/twin/TopDownMap";
 import { homographyFrom, project, SIMULATED_CAMERA } from "./src/lib/perspective";
+import { sameSpot } from "./src/lib/contract";
+import { statusSignature } from "./src/components/twin/StallLayer";
 import { holdVerdict } from "./src/hooks/useHold";
 import { HoldCard } from "./src/components/HoldCard";
 
@@ -241,6 +243,44 @@ check("every free stall is a button", buttons === available, `${buttons} buttons
 check("free stalls are keyboard reachable", interactive.includes('tabindex="0"'));
 check("occupied stalls are not focusable", buttons < Object.keys(state.spots).length);
 check("buttons say what they do", interactive.includes("Hold stall"));
+
+// ---- spot ids are whatever the pipeline says they are -------------------------------
+// The real lot numbers stalls 1 to 28, the fixture names them A1 to B14. Nothing in the UI is
+// allowed to care. This renders the whole twin against renumbered ids to prove it.
+function renumber<T extends { spots: Record<string, unknown> }>(source: T): T {
+  const spots: Record<string, unknown> = {};
+  Object.keys(source.spots).forEach((id, index) => {
+    spots[String(index + 1)] = source.spots[id];
+  });
+  return { ...source, spots };
+}
+
+const numericLayout = renumber(layout) as Layout;
+const numericState = {
+  ...renumber(state),
+  // Deliberately a number, not a string: a pipeline whose stalls are integers can easily emit
+  // best_spot as an int even though the schema says string.
+  best_spot: 7 as unknown as string,
+  last_event: { spot_id: 7 as unknown as string, from: "occupied" as const, to: "available" as const },
+} as ParkState;
+
+const numeric = render("twin with numeric stall ids", <TwinPanel layout={numericLayout} state={numericState} onSelect={() => {}} />);
+check("the map still draws every stall", (numeric.match(/<polygon/g) ?? []).length >= 28, `${(numeric.match(/<polygon/g) ?? []).length}`);
+check("stalls are labelled with the pipeline's own ids", numeric.includes(">7<") && numeric.includes(">28<"));
+check("no stall is labelled with a fixture id", !numeric.includes(">A7<"));
+check("a numeric best_spot still rings the right stall", numeric.includes("stroke-dasharray"));
+
+check("ids compare across wire types", sameSpot(7, "7") && sameSpot("A7", "A7"));
+check("ids that differ do not compare equal", !sameSpot("7", "28") && !sameSpot(null, "7") && !sameSpot("7", undefined));
+
+// The signature is a memo key, so a collision means a stall silently stops repainting.
+const shifted = { ...numericState, spots: { ...numericState.spots, "1": { status: "held" as const } } };
+check("the status signature changes when a stall changes", statusSignature(numericState) !== statusSignature(shifted));
+check(
+  "the status signature separates id from status",
+  statusSignature({ ...numericState, spots: { "1": { status: "occupied" as const }, "11": { status: "available" as const } } }) !==
+    statusSignature({ ...numericState, spots: { "1": { status: "occupied" as const }, "11": { status: "occupied" as const } } }),
+);
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
