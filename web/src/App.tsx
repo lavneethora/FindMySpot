@@ -10,6 +10,7 @@ import { TwinPanel } from "./components/TwinPanel";
 import { AnalyticsStrip } from "./components/AnalyticsStrip";
 import { ActivityFeed } from "./components/ActivityFeed";
 import { HoldCard } from "./components/HoldCard";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
   const { layout, state, connection, error, hold } = useParkTech();
@@ -26,7 +27,10 @@ export default function App() {
       {/* 1440 rather than the 1200 in DESIGN.md. That limit exists to keep prose line lengths
           readable on a marketing page, which does not apply to two side by side map panels:
           at 1200 each panel drops under 560px and the twin starts losing stall labels. */}
-      <div className="mx-auto flex min-h-full max-w-[1440px] flex-col gap-5 px-6 py-8 sm:px-10">
+      <div
+        className="mx-auto flex min-h-full max-w-[1440px] flex-col px-6 sm:px-10"
+        style={{ gap: "var(--page-gap)", paddingBlock: "var(--page-pad)" }}
+      >
         <AppHeader layout={layout} state={state} connection={connection} />
 
         {error && (
@@ -35,26 +39,40 @@ export default function App() {
           </p>
         )}
 
-        <SummaryStrip state={state} />
+        <ErrorBoundary what="The summary">
+          <SummaryStrip state={state} />
+        </ErrorBoundary>
 
         {/* The demo moment is watching a car leave on the left while the stall flips on the
             right, so these two stay adjacent and equal until the viewport is genuinely narrow. */}
-        <div className="grid gap-5 xl:grid-cols-2">
-          <VisionPanel layout={layout} state={state} connection={connection} />
-          <TwinPanel
-            layout={layout}
-            state={state}
-            heldSpot={holding.hold?.spotId ?? null}
-            route={holding.hold?.route}
-            onSelect={onSelect}
-          />
+        {/* Boundaries go around each panel separately. One around the pair would still take
+            both out, and the whole point is that the other half keeps running. */}
+        <div className="grid xl:grid-cols-2" style={{ gap: "var(--page-gap)" }}>
+          <ErrorBoundary what="The camera panel">
+            <VisionPanel layout={layout} state={state} connection={connection} />
+          </ErrorBoundary>
+          <ErrorBoundary what="The digital twin">
+            <TwinPanel
+              layout={layout}
+              state={state}
+              heldSpot={holding.hold?.spotId ?? null}
+              route={holding.hold?.route}
+              onSelect={onSelect}
+            />
+          </ErrorBoundary>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <AnalyticsStrip />
-          <div className="flex flex-col gap-5">
-            <HoldCard layout={layout} state={state} holding={holding} />
-            <ActivityFeed events={events} />
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]" style={{ gap: "var(--page-gap)" }}>
+          <ErrorBoundary what="The analytics strip">
+            <AnalyticsStrip />
+          </ErrorBoundary>
+          <div className="flex flex-col" style={{ gap: "var(--page-gap)" }}>
+            <ErrorBoundary what="The hold card">
+              <HoldCard layout={layout} state={state} holding={holding} />
+            </ErrorBoundary>
+            <ErrorBoundary what="The activity feed">
+              <ActivityFeed events={events} />
+            </ErrorBoundary>
           </div>
         </div>
 
