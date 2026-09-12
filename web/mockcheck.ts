@@ -71,6 +71,28 @@ check("best_spot is the nearest available stall", s0.best_spot === nearestAvaila
 
 const held = await p4.hold(s0.best_spot);
 check("hold returns a route with at least three waypoints", held.route.length >= 3, JSON.stringify(held.route));
+check(
+  "the route starts at the entrance",
+  Math.hypot(held.route[0][0] - layout.entrance.x, held.route[0][1] - layout.entrance.y) < 1e-9,
+  JSON.stringify(held.route[0]),
+);
+const end = held.route[held.route.length - 1];
+const target = layout.spots[held.spot_id].centroid;
+check(
+  "the route ends at the held stall",
+  Math.hypot(end[0] - target[0], end[1] - target[1]) < 1e-9,
+  `${JSON.stringify(end)} vs ${JSON.stringify(target)}`,
+);
+check(
+  "every waypoint is inside the lot",
+  held.route.every((p: number[]) => p[0] >= 0 && p[0] <= 1 && p[1] >= 0 && p[1] <= 1),
+  JSON.stringify(held.route),
+);
+check(
+  "no two waypoints sit on top of each other",
+  held.route.every((p: number[], i: number) => i === 0 || Math.hypot(p[0] - held.route[i - 1][0], p[1] - held.route[i - 1][1]) > 1e-4),
+  JSON.stringify(held.route),
+);
 check("hold expiry is about 90 seconds out", Math.abs(new Date(held.held_until).getTime() - Date.now() - 90000) < 2000);
 
 const s1 = p4.compose(125);
