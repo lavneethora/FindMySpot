@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lavneethora/TechPark/contracts/layout.schema.json",
+  "title": "ParkTech lot layout",
+  "description": "Static geometry of a monitored zone, fetched once at load from GET /api/layout. Does not change while the camera is fixed, so it is never sent on the WebSocket.",
+  "type": "object",
+  "required": ["camera_id", "entrance", "spots"],
+  "additionalProperties": true,
+  "properties": {
+    "camera_id": { "type": "string" },
+    "lot_name": {
+      "type": "string",
+      "description": "Human readable name for the header."
+    },
+    "entrance": {
+      "type": "object",
+      "description": "Where cars enter, in normalized top-down coordinates. Route animations start here.",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "spots": {
+      "type": "object",
+      "description": "Keyed by spot id, matching the keys in state.schema.json.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["polygon", "centroid"],
+        "properties": {
+          "polygon": {
+            "type": "array",
+            "description": "Corners in normalized top-down coordinates, clockwise. Render these directly as an SVG polygon.",
+            "minItems": 3,
+            "items": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          },
+          "centroid": {
+            "type": "array",
+            "description": "Polygon centre, for labels and as the route endpoint.",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "number" }
+          },
+          "distance_to_entrance_m": {
+            "type": "number",
+            "description": "Approximate walking distance in metres. Drives best_spot selection."
+          }
+        }
+      }
+    },
+    "aisles": {
+      "type": "object",
+      "description": "Waypoint graph used to route a driver from the entrance to a chosen spot.",
+      "properties": {
+        "nodes": {
+          "type": "object",
+          "description": "Keyed by node id, value is [x, y] in normalized top-down coordinates.",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "number" }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "description": "Undirected connections between node ids.",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
