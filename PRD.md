@@ -3,7 +3,7 @@
 ## Context
 
 HackWesTX VII runs Sept 12 to 13, 2026 at the TTU Innovation Hub. Theme: "Beyond the Feed."
-Team is 2 people (Lavneet on vision, friend on frontend). Target is 1st Overall, with Best Use
+Team is 2 people: Lavneet on vision, Sharva on frontend. Target is 1st Overall, with Best Use
 of Tiger Data and Best UI/UX as secondary shots.
 
 **The problem being solved:** parking lots already have capacity and already have cameras, but
@@ -126,7 +126,7 @@ parktech/
 ```
 
 Car `x`/`y` are normalized top-down coordinates, already warped server side. The frontend never
-does geometry. Friend builds the entire UI against a mocked version of this file starting at
+does geometry. Sharva builds the entire UI against a mocked version of this file starting at
 hour 1, so neither person is ever blocked on the other.
 
 ---
@@ -193,7 +193,7 @@ single-page dashboard). Visual language follows
 Wall clock is 24 hours. Subtract opening ceremony, food, sleep, and about 2 hours for Devpost
 and the demo video that everyone underestimates.
 
-| Hours | Lavneet (vision) | Friend (frontend) |
+| Hours | Lavneet (vision) | Sharva (frontend) |
 |---|---|---|
 | 0-1 | Repo, venv, `pip install ultralytics`, start PKLot download in background, Timescale up | Vite + React + Tailwind scaffold, read DESIGN.md, **write `mock_state.json` from the contract** |
 | 1-2 | **GO/NO-GO: YOLO on one PKLot frame.** Do cars come back boxed? | Two-panel layout shell, wired to mock JSON on a timer |
@@ -220,6 +220,210 @@ and the demo video that everyone underestimates.
 Vultr, Auth0, Gemini, ElevenLabs, Solana, custom training, multi-camera fusion, camera-placement
 optimization, license plates, multi-lot selector, mobile app, turn-by-turn navigation, predictive
 ML. Every one of these is a closing slide, not a commit.
+
+---
+
+## Work Split Across Two Claude Sessions
+
+Two agents in parallel fail for one reason: they edit the same files. The fix is not a clever
+branch model, it is **strict directory ownership plus a contract that lands before anyone
+branches.** Git is just the transport.
+
+### Step 0: repo setup (Lavneet, alone, before either session starts building)
+
+Nobody branches until `main` has the interface on it.
+
+The repo is `lavneethora/TechPark` (private). Sharva (`sharvapatill`) is already a collaborator.
+Everything below lands as PRs, same as all other work.
+
+1. This PR: replace the old PRDs with this one, write the README
+2. Commit the skeleton: every directory from the layout above with `.gitkeep`
+3. Commit `.gitignore`: `data/`, `venv/`, `node_modules/`, `*.pt`, `.env`
+4. Commit `contracts/state.schema.json` and `contracts/mock_state.json` (the frozen contract)
+5. Commit the root `CLAUDE.md` (below). This is what keeps each session in its lane
+6. Commit `.github/CODEOWNERS` so reviews auto-request the right person:
+   ```
+   /parktech/   @lavneethora
+   /run.py      @lavneethora
+   /web/        @sharvapatill
+   /contracts/  @lavneethora @sharvapatill
+   ```
+7. Commit `.github/workflows/ci.yml` (Python import plus ruff, and `npm run build` in `web/`)
+8. **Enable branch protection on `main`**: require a PR, require one approving review, require
+   the CI check to pass
+9. Copy the design reference to `web/docs/DESIGN.md` so Sharva's machine can read it
+10. Both teammates run `gh auth login` on their own machine before starting
+
+This scaffolding is 25 minutes and it is the highest-leverage 25 minutes of the event.
+
+### Ownership table (goes in CLAUDE.md, enforced by both sessions)
+
+| Path | Owner | Other session may |
+|---|---|---|
+| `run.py`, `calibrate.py`, `parktech/**` | **A (vision)** | read only |
+| `config/*.json` | **A** | read only |
+| `web/**` | **B (frontend)** | read only |
+| `contracts/**` | **shared** | change only at a sync point, by agreement |
+| `README.md` | A until hour 17, then B | |
+
+Overlap is exactly one directory, and that one is frozen. This is what makes parallel agents
+safe, far more than any PR process.
+
+### Root `CLAUDE.md` (both sessions read this automatically)
+
+```markdown
+# ParkTech
+
+HackWesTX VII. Two-person team, two parallel Claude sessions.
+
+## Your lane
+Session A owns Python: run.py, calibrate.py, parktech/, config/
+Session B owns the web app: web/
+NEVER edit files outside your lane. If you believe a file in the other lane needs
+to change, STOP and tell the user. Do not fix it yourself.
+
+## contracts/
+contracts/state.schema.json is the interface between the two lanes.
+After hour 1 it is ADDITIVE ONLY: you may add fields, never rename or remove one.
+Any change here requires the user to sync with the other session first.
+
+## Conventions
+- One file per commit. Commit each file the moment you finish editing it.
+- Space commit timestamps apart. Do not let a batch land on the same second.
+- NEVER add "Co-Authored-By: Claude", "Generated with Claude Code", or any other AI
+  attribution to a commit message or a PR description. This is a hard rule.
+- No em dashes anywhere: code, comments, docs, commit messages.
+- Never push to main. Every change is a PR reviewed by the other teammate.
+- Prefer a single `python run.py` entrypoint over server-plus-curl workflows.
+- UI follows design-system/output/poke.com/DESIGN.md.
+```
+
+### Branch model, tuned for 24 hours
+
+Long-lived `vision` and `web` branches are wrong here; they diverge and you pay for it at 3am.
+Use short task branches off `main`, merged at the sync points already in the timeline.
+
+```
+main ────●────●──────────●──────────●──────────● (always demo-able)
+          \    \        /          /          /
+ A:        ●────●──────/──────────/──────────/    vision/occupancy, vision/homography, ...
+            \          \        /          /
+ B:          ●──────────●──────/──────────/       web/shell, web/twin, web/routing
+```
+
+Branch naming: `vision/<thing>`, `web/<thing>`. Small and short-lived, hours not half-days.
+
+**Every change goes through a PR, reviewed by the other teammate. Nothing is pushed directly to
+`main`, ever.** Enforce it rather than relying on discipline: after the Step 0 push, turn on
+branch protection on `main` requiring one approving review.
+
+The obvious risk is a PR blocking on a sleeping teammate. Three things remove it:
+
+**1. Stacked branches.** Never branch off an unmerged PR's target, branch off the PR itself.
+If Lavneet finishes `vision/occupancy` while Sharva is asleep, he opens the PR and then starts
+`vision/homography` **off `vision/occupancy`**, not off `main`. Work continues at full speed and
+the stack merges in order when Sharva wakes up. This is the single technique that makes
+always-PR compatible with staggered sleep.
+
+```bash
+git checkout -b vision/homography vision/occupancy   # stack, do not wait
+gh pr create --base vision/occupancy --fill          # retarget to main after the parent lands
+```
+
+**2. CI so review is a skim, not an audit.** A small GitHub Action (about 20 minutes to set up,
+worth it) that on every PR runs `python -c "import parktech"` plus `ruff check`, and
+`npm ci && npm run build` in `web/`. Once green means "it at least runs," an approval is a
+30-second read of the diff instead of a careful review, which is the only kind of review that
+actually happens at hour 14.
+
+**3. Auto-merge plus a review SLA.** Open every PR with `gh pr merge --auto --squash` so it
+lands the instant CI is green and approval arrives. Target 15 minutes to review while both are
+awake. Reviews are a skim for two things only: did this touch the other lane, and did it change
+`contracts/`. Style nits go in the Devpost, not in a PR comment.
+
+**Emergency path, agreed in advance so nobody improvises at 3am:** if `main` is broken during
+the hour 17 freeze and the other person is unreachable, the fix still goes up as a PR, and it is
+self-merged with the reason in the PR body. Document it, do not silently bypass it.
+
+Keep PRs small and single-purpose, roughly one per row of the timeline table. A 40-file PR at
+hour 12 will not get reviewed, it will get rubber-stamped, which is worse than no process.
+
+### Sync points (map onto the build timeline)
+
+| Hour | Sync | Both sides do |
+|---|---|---|
+| 0.5 | **Contract live** | Branch from `main`. B starts against the mock immediately |
+| 5 | **First integration** | A merges occupancy plus API, B merges UI shell. Run end to end together |
+| 9 | **Twin live** | A merges homography and warped coords, B merges rectified rendering |
+| 14 | **Interaction live** | A merges holds and routing backend, B merges click-to-route |
+| 17 | **Freeze** | `main` is the demo. Bugfix commits only, no new branches |
+
+Protocol at every sync, in this order: both open their PRs, **review and approve each other's**,
+let auto-merge land them, both `git pull origin main`, then run the system end to end
+**together**. Only then keep building. A sync that does not include an actual end-to-end run is
+not a sync, it is just a merge.
+
+Reviews at a sync point are mutual and blocking, which is the one moment in the day where the
+PR requirement is genuinely earning its keep rather than costing you time. Between syncs, use
+stacked branches so neither person idles waiting on the other.
+
+### B must never be blocked on A
+
+This is what makes the parallelism real. The frontend ships a mock mode from hour 1:
+
+- `VITE_USE_MOCK=1` makes the app generate its own state stream in-process, replaying a scripted
+  sequence including a stall flipping occupied to available
+- No second process, no waiting on Python, no waiting on the PKLot download
+- B builds the entire transition animation, the routing UI, and the full design polish before
+  A's pipeline exists
+
+Flip the flag at hour 5 and it should just work, because both sides coded to the same schema.
+
+### Handling contract changes without breaking the other session
+
+The number one killer of parallel work. Two rules:
+
+1. **Additive only after hour 1.** Add fields freely. Never rename, never remove
+2. **Frontend ignores unknown fields, backend keeps emitting old ones** for one sync cycle
+
+That way neither side can break the other by shipping first.
+
+### Machine setup
+
+Two laptops, two clones, GitHub as the hub. Lavneet's Mac runs Session A, Sharva's machine runs
+Session B. Nothing is shared between them except the remote, which is exactly why the lane split
+matters: neither agent can see or accidentally edit the other's working tree.
+
+Per-machine prerequisites before the clock starts:
+- **Lavneet:** Python 3.12 (present), `pip install ultralytics` (**not currently installed**),
+  Docker (present) for the Timescale fallback, `gh auth login`
+- **Sharva:** Node 24+, `gh auth login`
+- Both: clone only after Step 0 has pushed `main` and branch protection is on
+
+### Kickoff prompt for each session
+
+Paste these as the first message so each agent knows its boundary before it writes anything.
+
+**Session A (Lavneet's machine, vision):**
+> You are Session A on ParkTech. You own Python only: `run.py`, `calibrate.py`, `parktech/`,
+> `config/`. Never edit `web/`. Read `CLAUDE.md` and `contracts/state.schema.json` first.
+> Workflow: branch off main, one file per commit, then `gh pr create`. Never push to main.
+> Never put AI attribution in a commit message or PR body.
+> Task 1 is the go/no-go: get YOLO11n detecting cars in a single PKLot frame and report back
+> before building anything else. If detection fails, try yolo11s, imgsz 1280, lower conf, and a
+> different camera, in that order. Do not fine-tune.
+
+**Session B (Sharva's machine, frontend):**
+> You are Session B on ParkTech. You own `web/` only. Never edit Python files. Read `CLAUDE.md`,
+> `contracts/state.schema.json`, `contracts/mock_state.json`, and `web/docs/DESIGN.md` first.
+> Workflow: branch off main, one file per commit, then `gh pr create`. Never push to main.
+> Never put AI attribution in a commit message or PR body.
+> Build the entire UI against mock data behind `VITE_USE_MOCK=1`. You must not need the Python
+> backend running at any point today.
+
+**Gotcha worth catching now:** `design-system/output/poke.com/DESIGN.md` lives on Lavneet's Mac,
+not in this repo, so Sharva's session cannot read it. Copy it to `web/docs/DESIGN.md` during
+Step 0. Do not leave Session B pointed at a path that does not exist on its machine.
 
 ---
 
