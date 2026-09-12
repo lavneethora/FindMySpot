@@ -1,0 +1,7 @@
+# Build output and TypeScript incremental state
+dist/
+*.tsbuildinfo
+
+# Local environment overrides. .env.example is committed, these are not.
+.env.local
+.env.*.local

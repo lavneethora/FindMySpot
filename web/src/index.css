@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* The full token system lands in the design-tokens change. These three are here so the
+   scaffold renders on poke.com's warm paper instead of on browser white. */
+@theme {
+  --color-paper: #fffdfa;
+  --color-surface: #eeebe6;
+  --color-card-border: #e2e1de;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: #000;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

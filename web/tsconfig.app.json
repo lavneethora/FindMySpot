@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+
+    // noUnusedLocals and noUnusedParameters are deliberately off. A red CI on an
+    // unused import at hour 16 of a 24 hour build costs more than it catches.
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "skipLibCheck": true,
+
+    "paths": {
+      "@contracts/*": ["../contracts/*"]
+    }
+  },
+  "include": ["src", "../contracts/*.json"]
+}
