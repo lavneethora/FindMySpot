@@ -88,7 +88,9 @@ export function useHold(place: (spotId: string) => Promise<Hold>, state: ParkSta
       try {
         const result = await place(spotId);
         setHold({
-          spotId: result.spot_id,
+          // Normalise once, here, so nothing downstream has to wonder whether the pipeline
+          // sent the id as a string or as a number.
+          spotId: String(result.spot_id),
           heldUntil: new Date(result.held_until).getTime(),
           route: result.route ?? [],
         });

@@ -93,3 +93,17 @@ export function spotOf(state: ParkState | null, id: string): Spot | undefined {
 export function statusOf(state: ParkState | null, id: string): SpotStatus | "unknown" {
   return state?.spots[id]?.status ?? "unknown";
 }
+
+/**
+ * Compare two spot ids without caring how they were typed on the wire.
+ *
+ * Spot ids are strings in the schema, but they are also the keys of a JSON object, which means
+ * they arrive as strings no matter what. `best_spot` and `last_event.spot_id` are separate
+ * fields, and a pipeline whose stall ids are integers can easily emit those as numbers. The
+ * key lookups coerce on their own; strict equality does not, and a silently missing
+ * recommendation ring is exactly the sort of thing that eats twenty minutes at an integration
+ * sync. Never parse an id, never assume a prefix, only compare.
+ */
+export function sameSpot(a: string | number | null | undefined, b: string | number | null | undefined): boolean {
+  return a != null && b != null && String(a) === String(b);
+}
