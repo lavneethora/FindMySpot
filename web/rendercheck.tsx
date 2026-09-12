@@ -27,6 +27,7 @@ import { sameSpot } from "./src/lib/contract";
 import { statusSignature } from "./src/components/twin/StallLayer";
 import { holdVerdict } from "./src/hooks/useHold";
 import { HoldCard } from "./src/components/HoldCard";
+import { ErrorBoundary } from "./src/components/ErrorBoundary";
 
 const layout = rawLayout as unknown as Layout;
 const state = rawState as unknown as ParkState;
@@ -291,6 +292,40 @@ check(
   statusSignature({ ...numericState, spots: { "1": { status: "occupied" as const }, "11": { status: "available" as const } } }) !==
     statusSignature({ ...numericState, spots: { "1": { status: "occupied" as const }, "11": { status: "occupied" as const } } }),
 );
+
+// ---- the viewport adapts to any panel shape -----------------------------------------
+// The map now measures its own box instead of assuming one, so the maths has to hold for
+// every shape the CSS can produce, not just the one it was designed against.
+let badAspect = 0;
+let badFraming = 0;
+for (const ratio of [0.8, 1, 1.2, 4 / 3, 16 / 11, 16 / 10, 16 / 9, 2, 2.4]) {
+  const b = viewBoxFor(layout, ratio);
+  if (Math.abs(b.width / b.height - ratio) > 1e-6) badAspect += 1;
+  const off = every.filter(([x, y]) => {
+    const ux = x * SCALE;
+    const uy = y * SCALE;
+    return ux < b.x || ux > b.x + b.width || uy < b.y || uy > b.y + b.height;
+  });
+  if (off.length > 0) badFraming += 1;
+}
+check("the viewport matches the box at every panel shape", badAspect === 0, `${badAspect} shapes wrong`);
+check("the lot stays fully framed at every panel shape", badFraming === 0, `${badFraming} shapes clipped`);
+
+// ---- the error boundary --------------------------------------------------------------
+check(
+  "an error becomes a message rather than a blank page",
+  ErrorBoundary.getDerivedStateFromError(new Error("boom")).message === "boom",
+);
+check(
+  "a thrown non error still produces a message",
+  ErrorBoundary.getDerivedStateFromError("oops").message === "Unknown error",
+);
+const passthrough = render(
+  "a healthy boundary is invisible",
+  <ErrorBoundary what="The twin"><p>panel content</p></ErrorBoundary>,
+);
+check("a healthy boundary renders its child untouched", passthrough.includes("panel content"));
+check("a healthy boundary adds no chrome of its own", !passthrough.includes("stopped"));
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
