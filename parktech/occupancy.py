@@ -63,6 +63,34 @@ def assign_centroid_in_box(spaces, boxes):
     return result
 
 
+def match_overlap(spaces, boxes, threshold=0.35):
+    """Which detection is in which stall. Returns spot_id -> box index or None.
+
+    Same test as assign_overlap, but keeps the identity of the winning box so
+    the caller can tell which vehicle is sitting in which stall, rather than
+    only that something is.
+    """
+    result = {}
+    for space in spaces:
+        poly = np.array(space.contour, dtype=np.float32)
+        poly_area = abs(cv2.contourArea(poly))
+        if poly_area <= 0:
+            result[space.id] = None
+            continue
+
+        best_idx, best_cover = None, 0.0
+        for i, (x1, y1, x2, y2) in enumerate(boxes):
+            rect = np.array(
+                [[x1, y1], [x2, y1], [x2, y2], [x1, y2]], dtype=np.float32
+            )
+            inter_area, _ = cv2.intersectConvexConvex(poly, rect)
+            cover = inter_area / poly_area
+            if cover > best_cover:
+                best_idx, best_cover = i, cover
+        result[space.id] = best_idx if best_cover >= threshold else None
+    return result
+
+
 def assign_overlap(spaces, boxes, threshold=0.35):
     """Fraction of the stall polygon covered by a detection box.
 
