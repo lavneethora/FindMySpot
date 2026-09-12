@@ -26,7 +26,11 @@ Python pipeline to be running.
 
 ## Git
 
-- **Never push to `main`.** Every change is a PR reviewed by the other teammate.
+- **Code goes through a PR**, reviewed by the other teammate. Anything under `parktech/`,
+  `web/`, `scripts/`, `config/`, `contracts/`, or `.github/`, plus `run.py` and `calibrate.py`.
+  `contracts/` especially: the other lane is built on it.
+- **Docs go straight to `main`.** README and other prose-only markdown do not need a PR.
+  Do not open one for a typo fix or a wording change.
 - Branch as `vision/<thing>` or `web/<thing>`.
 - **One file per commit.** Commit each file the moment you finish editing it, before moving on
   to the next file.
