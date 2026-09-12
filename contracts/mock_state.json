@@ -1,0 +1,171 @@
+{
+  "camera_id": "UFPR04",
+  "timestamp": "2013-01-10T12:05:00Z",
+  "spots": {
+    "A1": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A2": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A3": {
+      "status": "available",
+      "confidence": null,
+      "vehicle_id": null
+    },
+    "A4": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A5": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A6": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A7": {
+      "status": "available",
+      "confidence": null,
+      "vehicle_id": null
+    },
+    "A8": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A9": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A10": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A11": {
+      "status": "available",
+      "confidence": null,
+      "vehicle_id": null
+    },
+    "A12": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A13": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "A14": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B1": {
+      "status": "available",
+      "confidence": null,
+      "vehicle_id": null
+    },
+    "B2": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B3": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B4": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B5": {
+      "status": "available",
+      "confidence": null,
+      "vehicle_id": null
+    },
+    "B6": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B7": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B8": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B9": {
+      "status": "available",
+      "confidence": null,
+      "vehicle_id": null
+    },
+    "B10": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B11": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B12": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    },
+    "B13": {
+      "status": "available",
+      "confidence": null,
+      "vehicle_id": null
+    },
+    "B14": {
+      "status": "occupied",
+      "confidence": 0.93,
+      "vehicle_id": null
+    }
+  },
+  "cars": [
+    {
+      "id": 12,
+      "x": 0.46,
+      "y": 0.3
+    },
+    {
+      "id": 15,
+      "x": 0.7,
+      "y": 0.71
+    },
+    {
+      "id": 19,
+      "x": 0.22,
+      "y": 0.25
+    }
+  ],
+  "summary": {
+    "total": 28,
+    "occupied": 21,
+    "available": 7,
+    "accuracy": 0.942
+  },
+  "best_spot": "B9",
+  "last_event": null
+}
