@@ -1,22 +1,220 @@
 @import "tailwindcss";
 
-/* The full token system lands in the design-tokens change. These three are here so the
-   scaffold renders on poke.com's warm paper instead of on browser white. */
+/* Fonts are served from web/public/fonts, not from a CDN. The demo has to survive the
+   venue wifi failing, and DESIGN.md's own faces (Exposure, OpenRunde) are self hosted
+   proprietary files we cannot obtain. Outfit stands in for the display face, Nunito for the
+   rounded body face. Latin subsets only, 71 kB for both. */
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/fonts/outfit-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/nunito-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
 @theme {
+  /* ---- Surfaces, straight from DESIGN.md section 2 ---- */
   --color-paper: #fffdfa;
   --color-surface: #eeebe6;
+  --color-card: #ffffff;
   --color-card-border: #e2e1de;
+  --color-hairline: #eeeded;
+  --color-muted-border: #c7c7c7;
+  --color-ink: #000000;
+  --color-ink-alt: #1c1c1c;
+  --color-control-ring: #c9c7c4;
+
+  /* ---- Status ----
+     These are not arbitrary. Red and green alone fail for roughly one man in twelve, and a
+     deuteranope simulation of the first pass put the open and taken fills at a contrast
+     ratio of 1.00, meaning literally indistinguishable. The fills below separate by
+     LIGHTNESS as well as hue, so the map still reads with all colour information removed:
+     open to taken 2.77, open to held 1.60, held to taken 1.73. Empty reads light and airy,
+     taken reads dense and dark, which is also just good design. Do not lighten the taken
+     fill without rerunning that check: it is also what keeps the white stall label on it
+     above 4.5 to 1. */
+  --color-open: #1f6b4a;
+  --color-open-fill: #c7e8d5;
+  --color-open-edge: #5fa983;
+  --color-open-on: #12402c;
+
+  --color-held: #7a4b02;
+  --color-held-fill: #dfa32b;
+  --color-held-edge: #a8750b;
+  --color-held-on: #2e1c00;
+
+  --color-taken: #8e2f20;
+  --color-taken-fill: #b4503d;
+  --color-taken-edge: #963b29;
+  --color-taken-on: #fff6f3;
+
+  --color-unknown: #6e6963;
+  --color-unknown-fill: #cfcac3;
+  --color-unknown-edge: #a09a92;
+  --color-unknown-on: #2b2825;
+
+  --color-danger: #b3261e;
+
+  /* ---- Mesh blooms behind the glass ---- */
+  --color-bloom-amber: #f2c879;
+  --color-bloom-sage: #9dbfa4;
+  --color-bloom-clay: #e5a98c;
+
+  /* ---- Type ---- */
+  --font-display: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+
+  --text-display: 52px;
+  --text-display--line-height: 1;
+  --text-display--letter-spacing: -0.04em;
+
+  --text-title: 32px;
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.03em;
+
+  --text-metric: 34px;
+  --text-metric--line-height: 1.05;
+  --text-metric--letter-spacing: -0.02em;
+
+  --text-heading: 18px;
+  --text-heading--line-height: 1.375;
+
+  --text-body: 16px;
+  --text-body--line-height: 1.3;
+  --text-body--letter-spacing: -0.005em;
+
+  --text-nav: 15px;
+  --text-nav--line-height: 1;
+
+  --text-caption: 14px;
+  --text-caption--line-height: 1;
+
+  --text-small: 13px;
+  --text-small--line-height: 1.4;
+
+  /* ---- Radii, DESIGN.md section 5 ---- */
+  --radius-link: 6px;
+  --radius-chip: 10px;
+  --radius-control: 14px;
+  --radius-panel: 16px;
+  --radius-card: 24px;
+
+  /* ---- Depth, DESIGN.md section 6. Layered, never a single drop shadow ---- */
+  --shadow-subtle: 0 2px 4px rgb(0 0 0 / 0.05);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.035), 0 3px 8px rgb(0 0 0 / 0.035),
+    0 8px 28px rgb(0 0 0 / 0.043);
+  --shadow-card-raised: 0 2px 4px rgb(0 0 0 / 0.05), 0 6px 14px rgb(0 0 0 / 0.055),
+    0 14px 40px rgb(0 0 0 / 0.06);
+  --shadow-control: 0 0.5px 1px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.1),
+    0 4px 12px rgb(0 0 0 / 0.08);
+
+  --animate-hold-pulse: hold-pulse 2s ease-in-out infinite;
 }
 
-html,
-body,
-#root {
-  height: 100%;
+@keyframes hold-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
-body {
-  background-color: var(--color-paper);
-  color: #000;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  -webkit-font-smoothing: antialiased;
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+
+  /* DESIGN.md specifies a 2px ring at 2px offset. Applied once, globally, rather than
+     remembered per component. */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: var(--radius-link);
+  }
+
+  /* Numbers that change in place must not reflow the layout around them. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Frosted panel. The mesh ground behind it is what makes the blur visible, which is the
+     part light glassmorphism usually gets wrong. */
+  .glass {
+    background-color: rgb(255 255 255 / 0.55);
+    border: 1px solid rgb(255 255 255 / 0.7);
+    box-shadow: var(--shadow-card), inset 0 1px 0 rgb(255 255 255 / 0.65);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  }
+
+  /* Opaque twin of .glass. Use it for anything sitting over content that repaints every
+     frame, the MJPEG panel and the animating twin especially: a backdrop filter forces the
+     compositor to re-blur on every repaint and it will cost frames on a demo laptop. */
+  .solid {
+    background-color: rgb(255 255 255 / 0.92);
+    border: 1px solid var(--color-card-border);
+    box-shadow: var(--shadow-card), inset 0 1px 0 rgb(255 255 255 / 0.8);
+  }
+
+  /* Anything that cannot blur falls back to near opaque rather than to transparent, which
+     would leave text sitting directly on the mesh. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background-color: rgb(255 255 255 / 0.93);
+      border-color: var(--color-card-border);
+    }
+  }
+}
+
+/* Honour the system setting. Nothing here is load bearing, it is all decoration. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
