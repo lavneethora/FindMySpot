@@ -7,7 +7,7 @@ contract, so changes here are additive only.
 import asyncio
 import json
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -56,16 +56,19 @@ def create_app(pipeline, layout):
         return pipeline.state
 
     @app.post("/api/hold")
-    def post_hold(body: dict):
+    def post_hold(body: dict, response: Response):
         spot_id = body.get("spot_id")
         session_id = body.get("session_id", "anonymous")
         if not spot_id:
+            response.status_code = 400
             return {"error": "spot_id is required"}
 
         until = db.place_hold(pipeline.camera_id, spot_id, session_id)
         if until is None:
-            # Someone else already holds it. Saying so is the whole point of
-            # the feature: two drivers must never be sent to one stall.
+            # Someone else already holds it. This is a 409 and not a 200, so a
+            # client checking response.ok cannot mistake a refusal for a grant
+            # and end up with a hold that never expires.
+            response.status_code = 409
             return {"error": "already held", "spot_id": spot_id}
 
         return {
@@ -83,8 +86,21 @@ def create_app(pipeline, layout):
         except Exception as exc:  # noqa: BLE001
             print(f"aggregate refresh failed: {exc!r}")
         rows = db.occupancy_history(pipeline.camera_id, hours)
+        levels = db.occupancy_levels(pipeline.camera_id, hours)
         return {
             "camera_id": pipeline.camera_id,
+            # The occupancy curve. Transition counts below are arrivals and
+            # departures, which is a different question and cannot be summed
+            # into a level without knowing where the count started.
+            "levels": [
+                {
+                    "t": bucket.isoformat(),
+                    "occupied": round(avg_occ, 1),
+                    "peak": peak,
+                    "total": total,
+                }
+                for bucket, avg_occ, peak, total in levels
+            ],
             "buckets": [
                 {
                     "t": bucket.isoformat(),
