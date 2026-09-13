@@ -59,7 +59,8 @@ def main():
         shutil.rmtree(out)
 
     cache_file = find_cache(args.camera)
-    cache = json.loads(lzma.open(cache_file, "rt").read())
+    with lzma.open(cache_file, "rt") as fh:
+        cache = json.load(fh)
     wanted = set(cache["frames"])
     print(f"cache : {cache_file.name}")
     print(f"        {len(wanted)} frames, {cache['model']} @{cache['imgsz']}")
