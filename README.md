@@ -12,7 +12,7 @@ It makes the parking that already exists observable.
 
 ## Two views, deliberately
 
-**Driver view (`/`)** — the product. A top-down map of the lot, green for open and red for
+**Driver view (`/`)** is the product. A top-down map of the lot, green for open and red for
 taken. Click a free stall and it draws the way there along the driving lanes.
 
 **No camera feed here, on purpose.** Streaming footage of a car park to every driver would
@@ -20,7 +20,7 @@ contradict the one claim the product rests on: that only occupancy state ever le
 Detector accuracy is left out for the same reason. It is a number a driver cannot act on and
 would only invite doubt.
 
-**Operator view (`/ops`)** — the technical proof. The camera with detections and stall outlines
+**Operator view (`/ops`)** is the technical proof. The camera with detections and stall outlines
 drawn in, live accuracy against ground truth, the occupancy curve, and the activity feed. This is
 the only place footage appears, and the only place accuracy is quoted, because an operator is the
 person who would act on it.
@@ -68,8 +68,8 @@ camera is already close to overhead, so correcting it distorted the layout more 
 
 ### Routes follow the lanes
 
-The lanes are a graph — aisles across the lot, perpendicular lanes down both sides, a perimeter
-road, and an aisle below the bottom row — and routing is a shortest path over it. Every segment
+The lanes are a graph: aisles across the lot, perpendicular lanes down both sides, a perimeter
+road, and an aisle below the bottom row. Routing is a shortest path over it. Every segment
 of every route is a real lane by construction, so a path can never cut diagonally across parked
 cars.
 
@@ -78,7 +78,7 @@ bottom aisle and straight up through the row below it.
 
 The map also routes from several **simulated starting positions**. These are not other drivers:
 the system does not track other people and cannot. It is the same driver placed elsewhere, so the
-routing can be seen adapting — same stall, different start, different way round.
+routing can be seen adapting: same stall, different start, different way round.
 
 ### Nothing is reserved
 
@@ -144,7 +144,7 @@ Python pipeline running.
 ### Detections are precomputed
 
 `yolo11m` at 1920px takes about 1.3 seconds a frame, which is fine for measuring accuracy and too
-slow to drive a demo — and a laptop running a medium model flat out for an hour will thermal
+slow to drive a demo, and a laptop running a medium model flat out for an hour will thermal
 throttle exactly when people are watching.
 
 Detections for a fixed camera replaying fixed frames are deterministic, so they are computed once.
