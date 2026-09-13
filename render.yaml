@@ -20,5 +20,8 @@ services:
       # Set in the dashboard, not here. This file is public.
       - key: DATABASE_URL
         sync: false
+      # Both origins on purpose. findmyspot.tech is the one we demo, and the
+      # vercel.app address stays allowed so a DNS or certificate problem on the
+      # custom domain does not also take out the fallback URL.
       - key: ALLOWED_ORIGINS
-        value: https://findmyspot.tech
+        value: https://findmyspot.tech,https://findmyspot-three.vercel.app
