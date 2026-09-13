@@ -175,8 +175,13 @@ def route_to_stall(layout, spot_id, start_node="entrance"):
     return [[round(x, 4), round(y, 4)] for x, y in _simplify(path)]
 
 
-# Where the demo puts cars that are already circling the lot. Fractions along
-# the lane they sit on, so they land in an aisle rather than on top of a stall.
+# Positions the demo drops the driver at, as fractions along the lane they sit
+# on so they land in an aisle rather than on top of a stall.
+#
+# These are NOT other drivers competing for the space. It is the same driver,
+# placed somewhere else, so the routing can be seen adapting: same stall, same
+# lot, different starting point, different way round. Saying "other cars" would
+# imply the system tracks people it does not track.
 DRIVER_SPOTS = (
     ("L0", "R0", 0.30),
     ("R2", "L2", 0.25),
@@ -185,15 +190,14 @@ DRIVER_SPOTS = (
 
 
 def simulated_drivers(layout):
-    """A few cars already in the lot, sitting on lanes.
+    """The same driver, placed at several points in the lot.
 
-    Routing one driver to a stall proves the path is drivable. Routing several
-    from different corners to the SAME stall is what makes the lane network
-    legible: every path bends around the rows, because none of them can cross
-    one.
+    One route proves a path is drivable. The same stall approached from three
+    different starting points, each bending a different way round the rows, is
+    what shows the routing is solving the lot rather than drawing a line.
 
-    Each car is placed along a real lane, so the route from it starts on the
-    network rather than teleporting onto it.
+    Each position sits on a real lane, so a route from it starts on the network
+    rather than teleporting onto it.
     """
     nodes = layout.get("aisles", {}).get("nodes", {})
     drivers = []
@@ -215,7 +219,7 @@ def simulated_drivers(layout):
 
 
 def route_from_driver(layout, driver, spot_id):
-    """Route from a car's own position on its lane.
+    """Route from one simulated starting position on its lane.
 
     The car sits partway along a lane with a junction at either end, so it can
     set off in either direction. Routing from one fixed end made a car drive
