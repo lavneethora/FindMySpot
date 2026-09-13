@@ -24,9 +24,6 @@ export function MapDefs() {
         <stop offset="100%" stopColor="#E3DFD8" />
       </linearGradient>
 
-      <filter id="car-lift" x="-50%" y="-50%" width="200%" height="200%">
-        <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000" floodOpacity="0.28" />
-      </filter>
     </defs>
   );
 }
