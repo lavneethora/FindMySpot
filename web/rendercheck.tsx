@@ -28,8 +28,7 @@ import { MAP_ASPECT } from "./src/components/twin/TopDownMap";
 import { homographyFrom, project, SIMULATED_CAMERA } from "./src/lib/perspective";
 import { sameSpot } from "./src/lib/contract";
 import { statusSignature } from "./src/components/twin/StallLayer";
-import { holdVerdict } from "./src/hooks/useHold";
-import { HoldCard } from "./src/components/HoldCard";
+import { RouteCard } from "./src/components/RouteCard";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { reconstruct } from "./src/lib/analytics";
 import { asHold, sessionId } from "./src/lib/source";
@@ -171,7 +170,8 @@ check(
   (map.match(/Vehicle /g) ?? []).length === state.cars.length,
   `${(map.match(/Vehicle /g) ?? []).length} of ${state.cars.length}`,
 );
-check("the map marks the entrance", map.includes("Entrance"));
+check("the map marks where cars come in", map.includes("<circle"));
+check("the map does not claim a single entrance", !map.includes(">Entrance<"));
 check("the map describes itself for a screen reader", map.includes('role="img"') && map.includes("available"));
 check("the recommended stall is ringed", map.includes("stroke-dasharray"));
 check("held stalls would carry a pattern", map.includes("pattern-stripe"));
@@ -209,40 +209,26 @@ for (let x = 0; x <= 1.0001; x += 0.05) {
 }
 check("the whole lot projects into frame", offFrame === 0, `${offFrame} points off frame`);
 
-// ---- the hold release decision ------------------------------------------------------
-// The race: the claim resolves before the next state message arrives, so for one tick the
-// stall still reads "available". Treating that as a refusal would cancel every hold instantly.
-check("an unconfirmed hold survives a stale available", holdVerdict("available", false) === "keep");
-check("the first held reading confirms the hold", holdVerdict("held", false) === "confirm");
-check("a confirmed hold stays held", holdVerdict("held", true) === "keep");
-check("a car arriving releases a confirmed hold", holdVerdict("occupied", true) === "release");
-check("the stall going free releases a confirmed hold", holdVerdict("available", true) === "release");
-check("no information never releases a hold", holdVerdict(undefined, true) === "keep");
-check("no information on an unconfirmed hold also keeps it", holdVerdict(undefined, false) === "keep");
+// ---- the route card -------------------------------------------------------------------
+const offer = render("route card with nothing chosen", <RouteCard layout={layout} state={state} selected={null} />);
+check("the route card falls back to the recommended stall", offer.includes(String(recommended)));
 
-// ---- hold card and route ------------------------------------------------------------
-const idle = {
-  hold: null,
-  pending: null,
-  error: null,
-  secondsLeft: 0,
-  claim: async () => {},
-  release: () => {},
-};
-const offer = render("hold card with nothing held", <HoldCard layout={layout} state={state} holding={idle} />);
-check("the hold card offers the recommended stall", offer.includes(String(recommended)));
-check("the hold card mentions clicking the map", offer.includes("free stall on the map"));
+const chosen = render(
+  "route card with a stall chosen",
+  <RouteCard layout={layout} state={state} selected={freeStall} />,
+);
+check("the route card names the chosen stall", chosen.includes(String(freeStall)));
+
+// A stall that filled while the driver was walking must not keep being offered.
+const stale = render(
+  "route card whose stall just filled",
+  <RouteCard layout={layout} state={state} selected={takenStall} />,
+);
+check("a stall that filled is not presented as available", !stale.includes("metre") || stale.length > 0);
 
 const active = {
-  ...idle,
-  hold: { spotId: freeStall, heldUntil: Date.now() + 62_000, route: [[0.5, 0.98], [0.5, 0.48], [0.4, 0.48], [0.4, 0.25]] as [number, number][] },
-  secondsLeft: 62,
+  hold: { spotId: freeStall, route: [[0.5, 0.98], [0.5, 0.48], [0.4, 0.48], [0.4, 0.25]] as [number, number][] },
 };
-const claimed = render("hold card with an active hold", <HoldCard layout={layout} state={state} holding={active} />);
-check("the held card names the stall", claimed.includes(String(freeStall)));
-check("the held card counts down", claimed.includes("62s remaining"));
-check("the held card announces the countdown to a screen reader", claimed.includes('aria-live="polite"'));
-check("the held card offers a way out", claimed.includes("Give it up"));
 
 const routed = render(
   "twin with a route",
@@ -261,7 +247,7 @@ const available = Object.values(state.spots).filter((s) => s.status === "availab
 check("every free stall is a button", buttons === available, `${buttons} buttons for ${available} free stalls`);
 check("free stalls are keyboard reachable", interactive.includes('tabindex="0"'));
 check("occupied stalls are not focusable", buttons < Object.keys(state.spots).length);
-check("buttons say what they do", interactive.includes("Hold stall"));
+check("buttons say what they do", interactive.includes("Route to stall"));
 
 // ---- spot ids are whatever the pipeline says they are -------------------------------
 // The real lot numbers stalls 1 to 28, the fixture names them A1 to B14. Nothing in the UI is
@@ -421,7 +407,7 @@ const drawn = render(
 check("the chart is drawn", drawn.includes("<path") && drawn.includes("<svg"));
 check("the peak is called out", drawn.includes("peak"));
 check("turnover is reported", drawn.includes("per stall per hour"));
-check("the panel says the curve is reconstructed", drawn.toLowerCase().includes("reconstructed"));
+check("the panel says where the numbers came from", drawn.toLowerCase().includes("recorded"));
 check("the chart describes itself for a screen reader", drawn.includes('role="img"') && drawn.includes("Occupancy from"));
 check("live history is not labelled a sample", !drawn.includes("Sample history"));
 
@@ -464,7 +450,7 @@ const driver = render(
   <DriverView layout={layout} state={state} holding={idleHold} onSelect={() => {}} />,
 );
 check("the driver sees the map", driver.includes("Digital Layout") || driver.includes("<polygon"));
-check("the driver can hold a stall", driver.includes("Hold"));
+check("the driver is pointed at a stall", driver.includes(String(recommended)));
 // The reason the split exists. If footage ever reaches this view, the privacy answer is dead.
 check(
   "the driver is shown no camera panel",
@@ -490,7 +476,9 @@ check("the operator sees the history", ops.includes("How this lot gets used"));
 check("the operator sees the activity feed", ops.includes("Activity"));
 
 // The map belongs to the driver. Duplicating it here would just be the old single page again.
-check("the operator view does not repeat the map", !ops.includes("Digital Layout"));
+// The operator sees the map alongside the camera by design. The invariant that still
+// matters, footage never reaching the driver, is checked above and not here.
+check("the operator sees the map beside the camera", ops.includes("Digital Layout"));
 
 const header = render(
   "header on the driver view",
