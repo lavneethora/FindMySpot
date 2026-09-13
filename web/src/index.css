@@ -4,6 +4,47 @@
    venue wifi failing, and DESIGN.md's own faces (Exposure, OpenRunde) are self hosted
    proprietary files we cannot obtain. Outfit stands in for the display face, Nunito for the
    rounded body face. Latin subsets only, 71 kB for both. */
+/* Geist Mono is what renders. IBM Plex Mono is the loaded backup, and the rest of the stack
+   is system fallbacks for when font loading fails entirely.
+
+   Geist ships as a variable font, so one file covers 400 and 500: Google returns the same
+   woff2 for both weights. Plex ships separate static cuts, so both are loaded. Either way the
+   medium is a real medium, not the browser smearing the regular, which is the whole reason for
+   naming weights rather than letting it synthesise one. Latin subsets only, 43 kB for all
+   three files. */
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist-mono-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/plex-mono-400-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/plex-mono-500-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
 @font-face {
   font-family: "Outfit";
   font-style: normal;
@@ -75,9 +116,13 @@
   --color-bloom-clay: #e5a98c;
 
   /* ---- Type ---- */
-  --font-display: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-body: "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  /* One stack, everywhere. Geist Mono renders; Plex Mono is the loaded backup; the rest
+     catch a total font-loading failure. A monospace face for the whole interface is a
+     deliberate look, not a fallback: it reads as instrumentation, which is what this is. */
+  --font-mono: "Geist Mono", "IBM Plex Mono", "JetBrains Mono", "SF Mono", ui-monospace,
+    SFMono-Regular, Menlo, monospace;
+  --font-display: var(--font-mono);
+  --font-body: var(--font-mono);
 
   --text-display: 52px;
   --text-display--line-height: 1;
