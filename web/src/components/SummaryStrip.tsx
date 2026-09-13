@@ -38,7 +38,7 @@ export function SummaryStrip({ state, showAccuracy = false }: SummaryStripProps)
       <Stat
         label="Closest open stall"
         value={state?.best_spot ?? "--"}
-        note={state?.best_spot ? "excludes held stalls" : "none free"}
+        note={state?.best_spot ? undefined : "none free"}
         tone="var(--color-open)"
       />
     </Panel>
