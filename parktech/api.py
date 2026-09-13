@@ -109,11 +109,11 @@ def create_app(pipeline, layout):
 
     @app.get("/api/lanes")
     def get_lanes():
-        """The lane network, and the cars already circling the lot.
+        """The lane network, and the simulated starting positions.
 
-        Each driver has a position on a lane. Routing all of them to whichever
-        stall is clicked is what shows the lane network is real: every path
-        bends around the rows rather than crossing one.
+        These are the same driver placed at several points, not other cars in
+        the lot. Routing from each to whichever stall is clicked shows the
+        routing adapting: same stall, different start, different way round.
         """
         return {
             "nodes": layout.get("aisles", {}).get("nodes", {}),
@@ -124,7 +124,11 @@ def create_app(pipeline, layout):
 
     @app.get("/api/routes/{spot_id}")
     def get_all_routes(spot_id: str):
-        """Every way to one stall: from the entrance, and from each car in the lot."""
+        """Every way to one stall: the driver's own, and from each simulated position.
+
+        The simulated positions are the same driver placed elsewhere, so a judge
+        can see the routing solve the lot from more than one starting point.
+        """
         drivers = routing.simulated_drivers(layout)
         return {
             "spot_id": spot_id,
