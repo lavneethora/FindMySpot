@@ -19,6 +19,9 @@ import { TwinPanel } from "./src/components/TwinPanel";
 import { VisionPanel } from "./src/components/VisionPanel";
 import { ActivityFeed } from "./src/components/ActivityFeed";
 import { AnalyticsStrip } from "./src/components/AnalyticsStrip";
+import { DriverView } from "./src/views/DriverView";
+import { OpsView } from "./src/views/OpsView";
+import { pathOf, routeOf } from "./src/lib/router";
 import type { LoggedEvent } from "./src/hooks/useActivityLog";
 import { labelSize, SCALE, viewBoxFor } from "./src/lib/geometry";
 import { MAP_ASPECT } from "./src/components/twin/TopDownMap";
@@ -78,7 +81,7 @@ for (const connection of ["connecting", "live", "mock", "fallback"] as Connectio
   check(`header names the ${connection} state`, html.length > 0 && !html.includes("undefined"));
 }
 
-const summary = render("summary strip with data", <SummaryStrip state={state} />);
+const summary = render("summary strip with data", <SummaryStrip state={state} showAccuracy />);
 check("summary strip shows the available count", summary.includes(`>${state.summary.available}<`), `expected ${state.summary.available}`);
 check("summary strip shows the best spot", recommended == null || summary.includes(String(recommended)));
 check("summary strip shows accuracy as a percentage", accuracyText == null || summary.includes(accuracyText), String(accuracyText));
@@ -440,6 +443,62 @@ const gappy = render(
   <AnalyticsStrip analytics={{ series: wrongAnchor, loading: false, error: null }} connection="live" />,
 );
 check("an incomplete window is admitted on screen", gappy.includes("approximate"));
+
+// ---- two views -------------------------------------------------------------------------
+check("the root path is the driver view", routeOf("/") === "driver");
+check("an unknown path falls back to the driver view", routeOf("/nonsense") === "driver");
+check("/ops is the operator view", routeOf("/ops") === "ops" && routeOf("/ops/") === "ops");
+check("paths round trip", pathOf(routeOf("/ops")) === "/ops" && pathOf(routeOf("/")) === "/");
+
+const idleHold = {
+  hold: null,
+  pending: null,
+  error: null,
+  secondsLeft: 0,
+  claim: async () => {},
+  release: () => {},
+};
+
+const driver = render(
+  "driver view",
+  <DriverView layout={layout} state={state} holding={idleHold} onSelect={() => {}} />,
+);
+check("the driver sees the map", driver.includes("Digital twin") || driver.includes("<polygon"));
+check("the driver can hold a stall", driver.includes("Hold"));
+// The reason the split exists. If footage ever reaches this view, the privacy answer is dead.
+check("the driver is shown no camera panel", !driver.includes("Camera") && !driver.includes("/video"));
+check("the driver is shown no simulated footage either", !driver.includes("Simulated view"));
+check("the driver is not shown detector accuracy", !driver.includes("Per stall accuracy"));
+check("the driver is not shown operator analytics", !driver.includes("How this lot gets used"));
+
+const ops = render(
+  "operator view",
+  <OpsView
+    layout={layout}
+    state={state}
+    connection="live"
+    analytics={{ series: rebuilt, loading: false, error: null }}
+    events={events}
+  />,
+);
+check("the operator sees the camera", ops.includes("Camera"));
+check("the operator sees accuracy", ops.includes("Per stall accuracy"));
+check("the operator sees the history", ops.includes("How this lot gets used"));
+check("the operator sees the activity feed", ops.includes("Activity"));
+
+// The map belongs to the driver. Duplicating it here would just be the old single page again.
+check("the operator view does not repeat the map", !ops.includes("Digital twin"));
+
+const header = render(
+  "header on the driver view",
+  <AppHeader layout={layout} state={state} connection="live" route="driver" onNavigate={() => {}} />,
+);
+check("the driver header offers the operator view", header.includes("Operator view") && header.includes('href="/ops"'));
+const opsHeader = render(
+  "header on the operator view",
+  <AppHeader layout={layout} state={state} connection="live" route="ops" onNavigate={() => {}} />,
+);
+check("the operator header offers the way back", opsHeader.includes("Driver view") && opsHeader.includes('href="/"'));
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
