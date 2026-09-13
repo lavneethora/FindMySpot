@@ -4,6 +4,7 @@ import { SCALE, units, viewBoxFor, viewBoxString } from "../../lib/geometry";
 import type { Point } from "../../lib/contract";
 import { MapDefs } from "./MapDefs";
 import { RouteLayer } from "./RouteLayer";
+import type { DriverRoute } from "../../hooks/useRoutes";
 import { CarLayer } from "./CarLayer";
 import { StallLayer, statusSignature } from "./StallLayer";
 
@@ -18,11 +19,11 @@ interface TopDownMapProps {
   state: ParkState | null;
   heldSpot?: string | null;
   route?: Point[];
-  otherRoutes?: Point[][];
+  drivers?: DriverRoute[];
   onSelect?: (spotId: string) => void;
 }
 
-export function TopDownMap({ layout, state, heldSpot = null, route, onSelect, otherRoutes }: TopDownMapProps) {
+export function TopDownMap({ layout, state, heldSpot = null, route, onSelect, drivers }: TopDownMapProps) {
   const svg = useRef<SVGSVGElement>(null);
   const [aspect, setAspect] = useState(MAP_ASPECT);
 
@@ -98,7 +99,7 @@ export function TopDownMap({ layout, state, heldSpot = null, route, onSelect, ot
 
       {/* Above the stalls so it is never hidden by one, below the cars so a vehicle driving
           the route still reads as being on top of it. */}
-      {route && route.length > 1 && <RouteLayer route={route} others={otherRoutes} />}
+      {route && route.length > 1 && <RouteLayer route={route} drivers={drivers} />}
 
       <CarLayer cars={state?.cars ?? []} />
 
