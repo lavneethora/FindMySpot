@@ -109,17 +109,35 @@ def create_app(pipeline, layout):
 
     @app.get("/api/lanes")
     def get_lanes():
-        """The lane network, and a few places a driver could be waiting.
+        """The lane network, and the cars already circling the lot.
 
-        The demo routes from each of these to whichever stall is clicked, so a
-        judge can see that every path follows the lanes.
+        Each driver has a position on a lane. Routing all of them to whichever
+        stall is clicked is what shows the lane network is real: every path
+        bends around the rows rather than crossing one.
         """
-        nodes = layout.get("aisles", {}).get("nodes", {})
-        starts = [n for n in nodes if n.startswith(("L", "R"))] or list(nodes)
         return {
-            "nodes": nodes,
+            "nodes": layout.get("aisles", {}).get("nodes", {}),
             "edges": layout.get("aisles", {}).get("edges", []),
-            "driver_starts": ["entrance", *starts[:3]],
+            "entrance": layout.get("entrance"),
+            "drivers": routing.simulated_drivers(layout),
+        }
+
+    @app.get("/api/routes/{spot_id}")
+    def get_all_routes(spot_id: str):
+        """Every way to one stall: from the entrance, and from each car in the lot."""
+        drivers = routing.simulated_drivers(layout)
+        return {
+            "spot_id": spot_id,
+            "entrance": route_to(spot_id, layout, "entrance"),
+            "drivers": [
+                {
+                    "id": d["id"],
+                    "x": d["x"],
+                    "y": d["y"],
+                    "route": routing.route_from_driver(layout, d, spot_id),
+                }
+                for d in drivers
+            ],
         }
 
     @app.get("/api/analytics")
