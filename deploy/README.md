@@ -30,22 +30,43 @@ Copies the package, `run.py`, config, contracts, the cache, and only the frames
 the cache covers. Frames are chosen from the cache rather than by count, so the
 two cannot disagree.
 
-## 2. Run it
+## 2. Copy it to the server
 
 ```bash
-cd ../findmyspot-bundle
+rsync -az --info=progress2 ../findmyspot-bundle/ root@YOUR_VM_IP:/opt/findmyspot/
+```
+
+155 MB, so a couple of minutes on a normal connection.
+
+## 3. Build on the server, not on your laptop
+
+An Apple Silicon Mac builds arm64 images. A cloud VM is almost always amd64,
+and an arm64 image on an amd64 host either refuses to start or runs under
+emulation at a speed that ruins the demo. Building on the box it runs on avoids
+the question entirely, and the build is only a pip install.
+
+```bash
+ssh root@YOUR_VM_IP
+cd /opt/findmyspot
 docker build -t findmyspot-pipeline .
-docker run -d --name findmyspot -p 8100:8100 \
+docker run -d --name findmyspot --restart unless-stopped -p 8100:8100 \
   -e DATABASE_URL="postgres://...tsdb.cloud.timescale.com:.../tsdb?sslmode=require" \
   -e ALLOWED_ORIGINS="https://your-frontend-domain" \
   findmyspot-pipeline
 ```
 
+`--restart unless-stopped` matters more than it looks: it brings the pipeline
+back after a reboot or a crash without anyone noticing, which is worth having
+when the machine is unattended overnight.
+
+If you must build on the Mac, pass `--platform linux/amd64` and expect it to be
+slow.
+
 `DATABASE_URL` is required and has no default in the image. There is no
 database in the container on purpose: one that loses its data on every redeploy
 is worse than none.
 
-## 3. Put TLS in front of it
+## 4. Put TLS in front of it
 
 **This is the step that eats the time, so do it before anything else.**
 
@@ -68,7 +89,7 @@ Caddy obtains and renews the certificate automatically. Without a domain you
 are hand-rolling self-signed certificates and adding browser exceptions, which
 does not work for a judge opening the link on their phone.
 
-## 4. Deploy the frontend
+## 5. Deploy the frontend
 
 ```bash
 cd web
@@ -96,6 +117,44 @@ halves can talk. If the map still does not update after that, open the console
 and look for a blocked WebSocket: `wss://` has to reach the pipeline too, and a
 proxy that forwards HTTP but not upgrades will pass every test above while the
 map stays frozen on its first frame.
+
+## If Docker fights you
+
+Docker is convenient, not required. The bundle is a plain Python application
+and this path is the one that was actually verified end to end on a clean
+machine with neither torch nor ultralytics installed:
+
+```bash
+cd /opt/findmyspot
+python3 -m venv venv
+./venv/bin/pip install -r requirements-server.txt
+DATABASE_URL="postgres://..." ALLOWED_ORIGINS="https://your-frontend-domain" \
+  ./venv/bin/python run.py --host 0.0.0.0 --port 8100 --start 11:30
+```
+
+Measured at 209 MB of dependencies. Put it under systemd so it survives a
+logout, which an ssh session with a backgrounded process does not:
+
+```ini
+# /etc/systemd/system/findmyspot.service
+[Unit]
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/findmyspot
+Environment=DATABASE_URL=postgres://...
+Environment=ALLOWED_ORIGINS=https://your-frontend-domain
+ExecStart=/opt/findmyspot/venv/bin/python run.py --host 0.0.0.0 --port 8100 --start 11:30
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl enable --now findmyspot
+journalctl -u findmyspot -f
+```
 
 ## Rolling back
 
