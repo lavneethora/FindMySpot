@@ -14,7 +14,7 @@ from pathlib import Path
 
 import cv2
 
-from parktech import db, occupancy, pklot
+from parktech import cache, db, occupancy, pklot
 
 VEHICLE_CLASSES = {2, 5, 7}  # COCO car, bus, truck
 
@@ -69,6 +69,14 @@ class Pipeline:
         self._vehicle_ids = {}
         self._next_vehicle_id = 1
         self._matched_boxes = set()
+
+        # Precomputed detections, keyed by frame filename. Loaded once at
+        # startup; falls back to live inference when absent or built for a
+        # different detector configuration.
+        self._cache = cache.load(camera_id, MODEL, IMGSZ, CONF)
+        if self._cache:
+            print(f"cache: {len(self._cache)} frames precomputed, "
+                  "replay will not wait on inference")
 
     def seek(self, time_of_day):
         """Rotate the frame list so replay begins near a given clock time.
