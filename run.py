@@ -85,6 +85,9 @@ def main():
     ap.add_argument("--limit", type=int, default=0,
                     help="headless only: stop after N frames")
     ap.add_argument("--no-loop", action="store_true")
+    ap.add_argument("--thin", type=int, default=2, metavar="N",
+                    help="keep every Nth frame of a stretch where nothing in the "
+                         "lot changes. 1 disables it and replays every frame.")
     ap.add_argument("--start", default=None,
                     help="begin replay at this time of day, e.g. 11:30. The "
                          "dataset opens before dawn on an empty lot, which is "
@@ -111,6 +114,8 @@ def main():
     pipeline = Pipeline(
         dirs[0], args.camera, fps=args.fps, loop=not args.no_loop
     )
+    if args.thin > 1:
+        pipeline.thin_idle(keep_every=args.thin)
     if args.start:
         pipeline.seek(args.start)
     layout, projector = build_layout(pipeline.frames, args.camera)
