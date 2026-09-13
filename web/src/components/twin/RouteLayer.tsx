@@ -111,12 +111,12 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
         );
       })}
       {/* A light underlay so the route stays legible crossing both the dark occupied stalls
-          and the pale asphalt. */}
+          and the pale asphalt. Scaled with the route below it. */}
       <polyline
         points={points}
         fill="none"
         stroke="rgb(255 253 250 / 0.9)"
-        strokeWidth={30}
+        strokeWidth={12}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -125,7 +125,7 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
         points={points}
         fill="none"
         stroke="var(--color-held-edge)"
-        strokeWidth={13}
+        strokeWidth={5}
         strokeLinecap="round"
         strokeLinejoin="round"
         pathLength={1}
@@ -137,7 +137,7 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
         points={points}
         fill="none"
         stroke="rgb(255 253 250 / 0.85)"
-        strokeWidth={5}
+        strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
         pathLength={1}
