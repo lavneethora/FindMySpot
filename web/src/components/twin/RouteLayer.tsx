@@ -5,22 +5,22 @@ import { path, units } from "../../lib/geometry";
 interface RouteLayerProps {
   route: Point[];
   /**
-   * Cars already circling the lot, each with its own path to the same stall, drawn behind
-   * the main one. Several cars converging on one space is what makes the lane network
-   * legible: every path bends around the rows, because no car can drive through one.
+   * The same driver simulated at other points in the lot, each with its own path to the
+   * chosen stall. Not other cars competing for the space: it is one driver, placed
+   * elsewhere, so the routing can be seen adapting to a different starting point.
    */
   drivers?: DriverRoute[];
 }
 
 /**
- * The routes to a chosen stall: the driver's own, plus one per car already in the lot.
+ * The routes to a chosen stall: the driver's own, plus one from each simulated position.
  *
  * Routes are computed by the pipeline against the lane graph, so every segment is a real
  * lane. Declaring pathLength as 1 lets the dash animation work in fractions of the route, so
  * the same keyframes look right whether the stall is the nearest one or the furthest.
  *
  * Every route draws itself, staggered. A path that simply appears reads as a diagram; one
- * that draws itself reads as a car setting off, which is the point of showing several at once.
+ * that draws itself reads as a car setting off, which is the point of showing several.
  */
 /** One colour per car, so three paths down the same lane stay tellable apart. */
 const DRIVER_COLOURS = ["#2f6f8e", "#8a5cc4", "#b8722a"];
@@ -39,18 +39,16 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
       {drivers.map((driver, index) => {
         const [cx, cy] = units([driver.x, driver.y]);
         const colour = DRIVER_COLOURS[index % DRIVER_COLOURS.length];
-        // Cars share lanes, so their routes lie on top of each other and three
-        // paths read as one. Nudging each a little to one side draws them as
-        // parallel lines down the same lane, which is what a driver sees
-        // anyway: several cars in the aisle, not one.
+        // The simulated routes share lanes, so they lie on top of each other
+        // and three paths read as one. Nudging each a little to one side draws
+        // them as parallel lines down the same lane.
         const nudge = (index - (drivers.length - 1) / 2) * 9;
         return (
           <g key={`driver-${driver.id}`} transform={`translate(${nudge} ${nudge})`}>
             {driver.route.length >= 2 && (
               <>
-                {/* Drawn in, same as the main route. A path that simply appears
-                    reads as a diagram; one that draws itself reads as a car
-                    setting off, which is the whole point of showing several. */}
+                {/* Drawn in, same as the main route, so each simulated start
+                    reads as a car setting off rather than a static diagram. */}
                 <polyline
                   points={path(driver.route)}
                   fill="none"
@@ -63,7 +61,7 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
                   strokeDasharray={1}
                   style={{
                     animation: "route-draw 700ms ease-out forwards",
-                    // Staggered so three cars set off in turn rather than
+                    // Staggered so the three set off in turn rather than
                     // together, which is easier to follow and looks less like
                     // one path splitting.
                     animationDelay: `${index * 220}ms`,
@@ -86,8 +84,8 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
                 />
               </>
             )}
-            {/* The car itself. Drawn as a rounded body rather than a dot so it reads as a
-                vehicle waiting in the aisle, not as another occupied stall. */}
+            {/* The simulated position. A rounded body rather than a dot, so it reads as a
+                vehicle in the aisle and not as another occupied stall. */}
             <g transform={`translate(${cx} ${cy})`}>
               <rect
                 x={-13}
