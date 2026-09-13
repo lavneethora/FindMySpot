@@ -1,4 +1,5 @@
 import type { Layout, ParkState, Point } from "../lib/contract";
+import type { DriverRoute } from "../hooks/useRoutes";
 import { SummaryStrip } from "../components/SummaryStrip";
 import { TwinPanel } from "../components/TwinPanel";
 import { RouteCard } from "../components/RouteCard";
@@ -9,7 +10,7 @@ interface DriverViewProps {
   state: ParkState | null;
   selected: string | null;
   route: Point[];
-  otherRoutes: Point[][];
+  drivers: DriverRoute[];
   onSelect: (spotId: string) => void;
 }
 
@@ -26,7 +27,7 @@ interface DriverViewProps {
  * which was fiction: nothing physically stops another car taking the space. Showing the way to
  * a free stall is a promise the product can keep, so that is all it makes.
  */
-export function DriverView({ layout, state, selected, route, otherRoutes, onSelect }: DriverViewProps) {
+export function DriverView({ layout, state, selected, route, drivers, onSelect }: DriverViewProps) {
   return (
     <>
       <ErrorBoundary what="The summary">
@@ -42,7 +43,7 @@ export function DriverView({ layout, state, selected, route, otherRoutes, onSele
             state={state}
             heldSpot={selected}
             route={route}
-            otherRoutes={otherRoutes}
+            drivers={drivers}
             onSelect={onSelect}
           />
         </ErrorBoundary>
