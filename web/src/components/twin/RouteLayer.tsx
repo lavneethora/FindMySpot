@@ -3,6 +3,12 @@ import { path, units } from "../../lib/geometry";
 
 interface RouteLayerProps {
   route: Point[];
+  /**
+   * Routes from other drivers already in the lot, drawn faintly behind the main one.
+   * Several cars converging on the same stall is what makes the lane network legible:
+   * every path bends around the rows because no car can drive through one.
+   */
+  others?: Point[][];
 }
 
 /**
@@ -12,7 +18,7 @@ interface RouteLayerProps {
  * lets the dash animation work in fractions of the route, so the same keyframes look right
  * whether the stall is the nearest one or the furthest.
  */
-export function RouteLayer({ route }: RouteLayerProps) {
+export function RouteLayer({ route, others = [] }: RouteLayerProps) {
   if (route.length < 2) return null;
 
   const points = path(route);
@@ -23,6 +29,26 @@ export function RouteLayer({ route }: RouteLayerProps) {
 
   return (
     <g key={key} pointerEvents="none">
+      {others
+        .filter((r) => r.length >= 2)
+        .map((r, i) => {
+          const [ox, oy] = units(r[0]);
+          return (
+            <g key={`other-${i}`} opacity={0.34}>
+              <path
+                d={path(r)}
+                fill="none"
+                stroke="var(--ink)"
+                strokeOpacity={0.35}
+                strokeWidth={0.9}
+                strokeDasharray="2 2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx={ox} cy={oy} r={1.4} fill="var(--ink)" fillOpacity={0.4} />
+            </g>
+          );
+        })}
       {/* A light underlay so the route stays legible crossing both the dark occupied stalls
           and the pale asphalt. */}
       <polyline
