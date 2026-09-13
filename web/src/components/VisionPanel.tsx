@@ -30,8 +30,7 @@ export function VisionPanel({ layout, state, connection }: VisionPanelProps) {
   return (
     <Panel tone="solid" className="flex flex-col">
       <PanelHead
-        title="Camera"
-        hint="One ordinary fixed camera. Detections, track ids and stall outlines drawn by the pipeline."
+        title="Parking Lot Camera"
         aside={
           accuracy != null ? (
             <Pill title="Running per stall accuracy against the dataset's own ground truth">
