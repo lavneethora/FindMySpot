@@ -6,8 +6,12 @@ interface CarLayerProps {
 }
 
 /**
- * Tracked vehicles, in the same normalized top down space as the stalls because the vision
- * lane warps them through the homography before sending anything.
+ * Tracked vehicles, in the same normalized top down space as the stalls.
+ *
+ * The stalls are a uniform schematic built from the lot's real row structure, not a
+ * photographic projection, so vehicles are placed onto the stall they occupy rather than at
+ * their raw ground position. Either way the vision lane does the geometry and sends
+ * normalized coordinates.
  *
  * Positions arrive eight times a second. Moving each car with a CSS transform transition
  * slightly longer than that interval lets the compositor fill in the frames between, so the
