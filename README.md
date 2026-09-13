@@ -196,3 +196,7 @@ Honest about the edges, because these are the first questions anyone asks:
 - **Real deployment on live infrastructure.** No university hands a student team a camera feed.
 
 Full detail, including the state contract, is in [PRD.md](PRD.md).
+
+## Team
+
+[@lavneethora](https://github.com/lavneethora) and [@sharvapatill](https://github.com/sharvapatill)
