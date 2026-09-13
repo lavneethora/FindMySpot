@@ -11,11 +11,11 @@ from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from parktech import db
+from parktech import db, routing
 
 
 def create_app(pipeline, layout):
-    app = FastAPI(title="ParkTech")
+    app = FastAPI(title="FindMySpot")
 
     # The frontend dev server runs on another port. This is a demo running on
     # one laptop, not something exposed to a network.
@@ -26,11 +26,23 @@ def create_app(pipeline, layout):
         allow_headers=["*"],
     )
 
-    loop = asyncio.get_event_loop()
+    # Captured once the server is actually running, NOT here. get_event_loop() at
+    # build time returns a loop uvicorn never runs, so every broadcast was
+    # scheduled onto a dead loop: a browser received the state sent on connect
+    # and then nothing, which looks exactly like a frozen map.
+    loop: asyncio.AbstractEventLoop | None = None
+
+    @app.on_event("startup")
+    async def _capture_loop():
+        nonlocal loop
+        loop = asyncio.get_running_loop()
+
     clients: set[WebSocket] = set()
 
     def on_state(payload):
         """Called from the pipeline thread, so hop onto the event loop."""
+        if loop is None:
+            return
         message = json.dumps(payload)
         asyncio.run_coroutine_threadsafe(broadcast(message), loop)
 
@@ -75,6 +87,61 @@ def create_app(pipeline, layout):
             "spot_id": spot_id,
             "held_until": until.isoformat(),
             "route": route_to(spot_id, layout),
+        }
+
+    @app.get("/api/route/{spot_id}")
+    def get_route(spot_id: str, from_node: str = "entrance"):
+        """The way to a stall, without claiming it.
+
+        Holds were removed from the driver view: nothing physically stops
+        another car taking a space, so telling a driver it is theirs is a
+        promise the product cannot keep. Showing the way there is one it can.
+
+        `from_node` lets several drivers be routed to the same stall from
+        different places in the lot, which is what makes the lane network
+        visible: every route bends around the rows instead of crossing them.
+        """
+        return {
+            "spot_id": spot_id,
+            "from": from_node,
+            "route": route_to(spot_id, layout, from_node),
+        }
+
+    @app.get("/api/lanes")
+    def get_lanes():
+        """The lane network, and the simulated starting positions.
+
+        These are the same driver placed at several points, not other cars in
+        the lot. Routing from each to whichever stall is clicked shows the
+        routing adapting: same stall, different start, different way round.
+        """
+        return {
+            "nodes": layout.get("aisles", {}).get("nodes", {}),
+            "edges": layout.get("aisles", {}).get("edges", []),
+            "entrance": layout.get("entrance"),
+            "drivers": routing.simulated_drivers(layout),
+        }
+
+    @app.get("/api/routes/{spot_id}")
+    def get_all_routes(spot_id: str):
+        """Every way to one stall: the driver's own, and from each simulated position.
+
+        The simulated positions are the same driver placed elsewhere, so a judge
+        can see the routing solve the lot from more than one starting point.
+        """
+        drivers = routing.simulated_drivers(layout)
+        return {
+            "spot_id": spot_id,
+            "entrance": route_to(spot_id, layout, "entrance"),
+            "drivers": [
+                {
+                    "id": d["id"],
+                    "x": d["x"],
+                    "y": d["y"],
+                    "route": routing.route_from_driver(layout, d, spot_id),
+                }
+                for d in drivers
+            ],
         }
 
     @app.get("/api/analytics")
@@ -151,32 +218,11 @@ def create_app(pipeline, layout):
     return app
 
 
-def route_to(spot_id, layout):
-    """Entrance to stall, through the aisle graph. Normalized coordinates.
+def route_to(spot_id, layout, start_node="entrance"):
+    """Lane-following route to a stall. See parktech/routing.py.
 
     In-lot routing only. Consumer GPS is accurate to 3 to 5 metres, which is
-    wider than a stall, so this is drawn on our own map rather than handed to
-    a turn by turn navigator.
+    wider than a stall, so this is drawn on our own map rather than handed to a
+    turn by turn navigator.
     """
-    spots = layout.get("spots", {})
-    if spot_id not in spots:
-        return []
-
-    entrance = layout.get("entrance", {"x": 0.5, "y": 0.98})
-    target = spots[spot_id].get("centroid", [0.5, 0.5])
-    nodes = layout.get("aisles", {}).get("nodes", {})
-
-    path = [[entrance["x"], entrance["y"]]]
-    if "main" in nodes:
-        path.append(list(nodes["main"]))
-    # Nearest aisle node to the stall, so the path runs down an aisle rather
-    # than straight across parked cars.
-    aisle_nodes = [(k, v) for k, v in nodes.items() if k not in ("entrance", "main")]
-    if aisle_nodes:
-        nearest = min(
-            aisle_nodes,
-            key=lambda kv: (kv[1][0] - target[0]) ** 2 + (kv[1][1] - target[1]) ** 2,
-        )
-        path.append(list(nearest[1]))
-    path.append(list(target))
-    return path
+    return routing.route_to_stall(layout, spot_id, start_node)

@@ -54,7 +54,7 @@ async function getJson<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-console.log(`\nParkTech preflight against ${ORIGIN}\n`);
+console.log(`\nFindMySpot preflight against ${ORIGIN}\n`);
 
 // ---- is anything listening -------------------------------------------------------------
 try {

@@ -4,6 +4,7 @@ import { SCALE, units, viewBoxFor, viewBoxString } from "../../lib/geometry";
 import type { Point } from "../../lib/contract";
 import { MapDefs } from "./MapDefs";
 import { RouteLayer } from "./RouteLayer";
+import type { DriverRoute } from "../../hooks/useRoutes";
 import { CarLayer } from "./CarLayer";
 import { StallLayer, statusSignature } from "./StallLayer";
 
@@ -18,10 +19,11 @@ interface TopDownMapProps {
   state: ParkState | null;
   heldSpot?: string | null;
   route?: Point[];
+  drivers?: DriverRoute[];
   onSelect?: (spotId: string) => void;
 }
 
-export function TopDownMap({ layout, state, heldSpot = null, route, onSelect }: TopDownMapProps) {
+export function TopDownMap({ layout, state, heldSpot = null, route, onSelect, drivers }: TopDownMapProps) {
   const svg = useRef<SVGSVGElement>(null);
   const [aspect, setAspect] = useState(MAP_ASPECT);
 
@@ -97,11 +99,16 @@ export function TopDownMap({ layout, state, heldSpot = null, route, onSelect }: 
 
       {/* Above the stalls so it is never hidden by one, below the cars so a vehicle driving
           the route still reads as being on top of it. */}
-      {route && route.length > 1 && <RouteLayer route={route} />}
+      {route && route.length > 1 && <RouteLayer route={route} drivers={drivers} />}
 
       <CarLayer cars={state?.cars ?? []} />
 
-      {/* Entrance. Routes start here, so it needs to be visible before any route exists. */}
+      {/* The car the driver is in, drawn where their route begins.
+
+          This used to be labelled "Entrance", which claimed something the lot does not have:
+          with a road round the outside a car can come in from any side, and calling one point
+          THE entrance tells a judge the map knows a thing it does not. It is just where this
+          driver happens to be. */}
       <g>
         <circle cx={entranceX} cy={entranceY} r={22} fill="#FFFDFA" stroke="#2B2825" strokeWidth={5} />
         <path
@@ -112,17 +119,6 @@ export function TopDownMap({ layout, state, heldSpot = null, route, onSelect }: 
           strokeLinejoin="round"
           fill="none"
         />
-        <text
-          x={entranceX}
-          y={entranceY + 52}
-          textAnchor="middle"
-          fontSize={30}
-          fontWeight={600}
-          fill="#6E6963"
-        >
-          Entrance
-        </text>
-        <title>Lot entrance</title>
       </g>
     </svg>
   );

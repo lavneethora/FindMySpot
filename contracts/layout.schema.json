@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/lavneethora/TechPark/contracts/layout.schema.json",
-  "title": "ParkTech lot layout",
+  "$id": "https://github.com/lavneethora/FindMySpot/contracts/layout.schema.json",
+  "title": "FindMySpot lot layout",
   "description": "Static geometry of a monitored zone, fetched once at load from GET /api/layout. Does not change while the camera is fixed, so it is never sent on the WebSocket.",
   "type": "object",
   "required": ["camera_id", "entrance", "spots"],

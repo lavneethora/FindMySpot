@@ -10,10 +10,11 @@ occupancy curve instead of a fabricated one.
 import threading
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import cv2
 
-from parktech import db, occupancy, pklot
+from parktech import cache, db, occupancy, pklot
 
 VEHICLE_CLASSES = {2, 5, 7}  # COCO car, bus, truck
 
@@ -67,6 +68,64 @@ class Pipeline:
         # honest and what the activity feed actually wants to say.
         self._vehicle_ids = {}
         self._next_vehicle_id = 1
+        self._matched_boxes = set()
+
+        # Precomputed detections, keyed by frame filename. Loaded once at
+        # startup; falls back to live inference when absent or built for a
+        # different detector configuration.
+        self._cache = cache.load(camera_id, MODEL, IMGSZ, CONF)
+        if self._cache:
+            print(f"cache: {len(self._cache)} frames precomputed, "
+                  "replay will not wait on inference")
+
+    def thin_idle(self, keep_every=2, min_run=4):
+        """Drop frames from long stretches where nothing in the lot changes.
+
+        The replay walks real capture order, which includes the hours when the
+        lot is simply empty. In one 400 frame window, 175 consecutive frames
+        were an empty lot: a minute and a half of nothing, every loop.
+
+        Cutting those stretches keeps the real sequence and the real order, and
+        only removes frames that show exactly what the frame before them
+        showed. Every frame where a stall changes is kept, so no arrival or
+        departure is ever skipped. Runs shorter than min_run are left alone,
+        since a couple of quiet frames is just the lot being quiet.
+
+        Ground truth is used to decide, not the detector: whether a frame is
+        worth showing is a fact about the lot, not about how we read it.
+        """
+        if len(self.frames) < 2:
+            return 0
+
+        states = []
+        for _jpg, xml in self.frames:
+            spaces = pklot.parse_spaces(xml)
+            states.append(frozenset(s.id for s in spaces if s.occupied))
+
+        # Group consecutive frames that show the same set of occupied stalls.
+        runs, start = [], 0
+        for i in range(1, len(states) + 1):
+            if i == len(states) or states[i] != states[start]:
+                runs.append((start, i))
+                start = i
+
+        kept = []
+        for begin, end in runs:
+            length = end - begin
+            if length < min_run:
+                kept.extend(range(begin, end))
+            else:
+                # Always keep the first frame of a run: that is the one where
+                # the change actually happened.
+                kept.extend(
+                    i for i in range(begin, end) if (i - begin) % keep_every == 0
+                )
+
+        dropped = len(self.frames) - len(kept)
+        self.frames = [self.frames[i] for i in kept]
+        if dropped:
+            print(f"thinned {dropped} idle frames, {len(self.frames)} remain")
+        return dropped
 
     def seek(self, time_of_day):
         """Rotate the frame list so replay begins near a given clock time.
@@ -105,20 +164,36 @@ class Pipeline:
             self._model = YOLO(MODEL)
         return self._model
 
-    def process_frame(self, jpg, xml):
-        """Run one frame end to end. Returns the published state payload."""
-        model = self._load_model()
-        spaces = pklot.parse_spaces(xml)
-        image = cv2.imread(str(jpg))
+    def detect(self, jpg):
+        """Vehicle boxes for one frame, from the cache when we have it.
 
+        The cached boxes are byte for byte what the model produced with the
+        same settings, so this is an execution shortcut and not an accuracy
+        shortcut. See parktech/cache.py.
+        """
+        if self._cache is not None:
+            cached = self._cache.get(Path(jpg).name)
+            if cached is not None:
+                return [row[:4] for row in cached], [row[4] for row in cached]
+
+        model = self._load_model()
         result = model.predict(str(jpg), imgsz=IMGSZ, conf=CONF, verbose=False)[0]
         boxes, confs = [], []
         for b in result.boxes:
             if int(b.cls) in VEHICLE_CLASSES:
                 boxes.append([float(v) for v in b.xyxy[0]])
                 confs.append(float(b.conf))
+        return boxes, confs
+
+    def process_frame(self, jpg, xml):
+        """Run one frame end to end. Returns the published state payload."""
+        spaces = pklot.parse_spaces(xml)
+        image = cv2.imread(str(jpg))
+
+        boxes, confs = self.detect(jpg)
 
         matches = occupancy.match_overlap(spaces, boxes, OVERLAP_THRESHOLD)
+        self._matched_boxes = set(matches.values())
         raw = {sid: idx is not None for sid, idx in matches.items()}
         state, changes = self._debouncer.update(raw)
         departed = self._update_vehicle_ids(state, changes)
@@ -269,17 +344,57 @@ class Pipeline:
             "last_event": self.last_event,
         }
 
+    def _crop_to_zone(self, image, spaces, pad=28, top_pad=6):
+        """Trim the frame to the stalls we actually monitor.
+
+        The camera sees far more of the lot than the dataset labels: roads, a
+        second bank of parking, and rows that were never annotated. Showing all
+        of it invites the obvious question of why cars are boxed in places the
+        map has no stall for. They are detected and then discarded, because
+        there is nothing to assign them to.
+
+        The top edge gets a few pixels where the others get a margin. Directly
+        above the first monitored row sits another row of cars the dataset
+        never labelled, and 28px of margin pulled it into shot: a row of
+        unboxed cars above the boxed ones, which reads as the detector missing
+        them. Six pixels is enough to keep the first row's outline from being
+        sliced in half and not enough to show what is above it.
+
+        Returns the cropped image and the (dx, dy) to shift stall coordinates.
+        """
+        pts = [p for s in spaces for p in s.contour]
+        if not pts:
+            return image, (0, 0)
+        height, width = image.shape[:2]
+        x0 = max(0, min(p[0] for p in pts) - pad)
+        y0 = max(0, min(p[1] for p in pts) - top_pad)
+        x1 = min(width, max(p[0] for p in pts) + pad)
+        y1 = min(height, max(p[1] for p in pts) + pad)
+        if x1 <= x0 or y1 <= y0:
+            return image, (0, 0)
+        return image[int(y0):int(y1), int(x0):int(x1)], (int(x0), int(y0))
+
     def _annotate(self, image, spaces, boxes, state, holds):
         """Draw the vision panel: stall outlines coloured by state, plus boxes."""
         import numpy as np
 
-        for x1, y1, x2, y2 in boxes:
+        image, (dx, dy) = self._crop_to_zone(image, spaces)
+
+        # Only draw detections that landed in a monitored stall. A box over an
+        # unmonitored car reads as a bug rather than as out of scope.
+        tracked = {i for i in self._matched_boxes if i is not None}
+        for index, (x1, y1, x2, y2) in enumerate(boxes):
+            if index not in tracked:
+                continue
             cv2.rectangle(
-                image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 190, 60), 1
+                image, (int(x1) - dx, int(y1) - dy),
+                (int(x2) - dx, int(y2) - dy), (255, 190, 60), 1
             )
 
         for s in spaces:
-            poly = np.array(s.contour, np.int32).reshape(-1, 1, 2)
+            poly = np.array(
+                [[p[0] - dx, p[1] - dy] for p in s.contour], np.int32
+            ).reshape(-1, 1, 2)
             if s.id in holds:
                 colour = (0, 190, 255)  # amber, claimed by a driver
             elif state.get(s.id):

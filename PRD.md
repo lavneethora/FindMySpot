@@ -1,4 +1,4 @@
-# ParkTech: PRD and 24-Hour Build Plan
+# FindMySpot: PRD and 24-Hour Build Plan
 
 ## Context
 
@@ -8,7 +8,7 @@ of Tiger Data and Best UI/UX as secondary shots.
 
 **The problem being solved:** parking lots already have capacity and already have cameras, but
 nobody knows which specific stalls are free right now. Drivers circle, congest the lot, and
-arrive late. ParkTech is an *infrastructure intelligence layer*: it ingests an existing fixed
+arrive late. FindMySpot is an *infrastructure intelligence layer*: it ingests an existing fixed
 camera feed and turns it into a live, clickable top-down map of stall availability.
 
 **Why this shape:** the team cannot shoot original footage, so the demo runs on the PKLot
@@ -18,7 +18,9 @@ tutorial has: free annotations, and a **measured accuracy number** instead of an
 
 **Known weaknesses, stated up front so they get managed rather than discovered:**
 - Parking occupancy via YOLO plus polygons is a heavily tutorialized problem. Innovation score
-  depends entirely on the homography rectification and the measured accuracy, not the detection.
+  depends on the measured accuracy and the occupancy geometry, not on the detection itself.
+  The homography this originally leaned on was dropped: PUCPR's camera is already near overhead,
+  so rectifying it distorted the map more than it corrected.
 - The footage is from Brazil, not the Innovation Hub. The local-grounding advantage is gone.
   Compensate with rigor (accuracy numbers) and an explicit TTU deployment-target slide.
 - Theme fit is a stretch. Bridge it once, cleanly, and move on.
@@ -27,7 +29,7 @@ tutorial has: free annotations, and a **measured accuracy number** instead of an
 
 ## Product Definition
 
-**One-liner:** ParkTech is a computer-vision layer for parking infrastructure that already
+**One-liner:** FindMySpot is a computer-vision layer for parking infrastructure that already
 exists. It turns an ordinary fixed camera into a live map of which stalls are open, which one
 you should take, and how the lot gets used over time.
 
@@ -298,7 +300,7 @@ branches.** Git is just the transport.
 
 Nobody branches until `main` has the interface on it.
 
-The repo is `lavneethora/TechPark` (private). Sharva (`sharvapatill`) is already a collaborator.
+The repo is `lavneethora/FindMySpot` (private). Sharva (`sharvapatill`) is already a collaborator.
 Everything below lands as PRs, same as all other work.
 
 1. This PR: replace the old PRDs with this one, write the README
@@ -337,7 +339,7 @@ safe, far more than any PR process.
 ### Root `CLAUDE.md` (both sessions read this automatically)
 
 ```markdown
-# ParkTech
+# FindMySpot
 
 HackWesTX VII. Two-person team, two parallel Claude sessions.
 
@@ -470,7 +472,7 @@ Per-machine prerequisites before the clock starts:
 Paste these as the first message so each agent knows its boundary before it writes anything.
 
 **Session A (Lavneet's machine, vision):**
-> You are Session A on ParkTech. You own Python only: `run.py`, `calibrate.py`, `parktech/`,
+> You are Session A on FindMySpot. You own Python only: `run.py`, `calibrate.py`, `parktech/`,
 > `config/`. Never edit `web/`. Read `CLAUDE.md` and `contracts/state.schema.json` first.
 > Workflow: branch off main, one file per commit, then `gh pr create`. Never push to main.
 > Never put AI attribution in a commit message or PR body.
@@ -479,7 +481,7 @@ Paste these as the first message so each agent knows its boundary before it writ
 > different camera, in that order. Do not fine-tune.
 
 **Session B (Sharva's machine, frontend):**
-> You are Session B on ParkTech. You own `web/` only. Never edit Python files. Read `CLAUDE.md`,
+> You are Session B on FindMySpot. You own `web/` only. Never edit Python files. Read `CLAUDE.md`,
 > `contracts/state.schema.json`, `contracts/mock_state.json`, and `web/docs/DESIGN.md` first.
 > Workflow: branch off main, one file per commit, then `gh pr create`. Never push to main.
 > Never put AI attribution in a commit message or PR body.
@@ -528,8 +530,14 @@ admitting it.
   question.
 - *How is this different from SpotHero or ParkMobile?* They handle reservations and payment.
   None of them know whether a physical stall is empty right now. That gap is the claim
-- *Did you hand-annotate the stalls?* No. Four clicks calibrate a camera, and the rectification
-  handles arbitrary mounting angles. That is the honest answer to the scaling question
+- *Did you hand-annotate the stalls?* **Answer this one carefully, it is a claim about how the
+  system scales and it changed during the build.** Stall outlines come from the dataset's own
+  annotations, and row grouping is a short config per camera. So: "a new camera is set up once,
+  by marking its stalls and grouping its rows. Minutes, at install, the same as any camera
+  system. After that it runs unattended, and nothing is retrained."
+  **Do not say the rectification handles arbitrary mounting angles.** That was true of an
+  earlier build. The map is now a uniform schematic derived from the real row structure, and
+  automatic stall discovery is on the "what's next" slide, not in the product.
 
 ---
 
@@ -542,10 +550,14 @@ admitting it.
   detector size before proceeding
 - Confirm debounce works: no stall changes state more than once per 3 frames on a static stretch
 
-**Homography:**
-- `python calibrate.py` then visually confirm warped stall polygons form a regular grid.
-  If the rectified stalls look like a fan rather than a grid, the 4 clicked points were not
-  coplanar on the ground. Reclick
+**Layout:**
+- `python run.py --headless --limit 3` prints the row grouping it built. Rows should match
+  `config/rows.json`, and aisles should sit where the lot actually has tarmac
+- Grass versus aisle is classified by sampling pixel greenness between rows in the real frame,
+  so a gap marked drivable should be grey in the source image, not green
+
+`calibrate.py` and `parktech/homography.py` remain in the tree for a camera with no annotations,
+which is the real deployment path. Neither runs in the demo.
 
 **End to end:**
 - Start `run.py`, open the web app, confirm the camera panel and twin agree on every stall

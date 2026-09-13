@@ -35,7 +35,7 @@ def pick_points(image):
     """Open a window and collect four clicks."""
     points = []
     display = image.copy()
-    window = "ParkTech calibration"
+    window = "FindMySpot calibration"
 
     def redraw():
         frame = display.copy()

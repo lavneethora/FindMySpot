@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     // The console is the only place this can go. Nothing here phones home.
-    console.error(`ParkTech: ${this.props.what} failed to render`, error, info.componentStack);
+    console.error(`FindMySpot: ${this.props.what} failed to render`, error, info.componentStack);
   }
 
   render() {

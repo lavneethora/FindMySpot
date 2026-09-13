@@ -1,4 +1,4 @@
-"""ParkTech. One command starts everything.
+"""FindMySpot. One command starts everything.
 
     python run.py                          # replay PUCPR, serve on :8100
     python run.py --camera UFPR04 --fps 4
@@ -58,6 +58,8 @@ def build_layout(frames, camera_id):
         spaces, camera_id, row_spec=row_spec, drivable_gaps=drivable,
         lot_name=f"PKLot {camera_id}",
     )
+    print(f"layout: {len(built['spots'])} stalls, "
+          f"aisles at gaps {built['drivable_gaps']}")
 
     # Vehicles are placed on the stall they occupy rather than warped
     # independently, so a car can never appear off its own stall on the map.
@@ -76,13 +78,16 @@ def main():
     # came back as 502 and the twin silently froze on its first payload.
     ap.add_argument("--host", default="0.0.0.0")
     # 8000 is a crowded default and already taken on this machine by another
-    # project. 8100 keeps ParkTech out of the way.
+    # project. 8100 keeps FindMySpot out of the way.
     ap.add_argument("--port", type=int, default=8100)
     ap.add_argument("--headless", action="store_true",
                     help="no server, print state to stdout")
     ap.add_argument("--limit", type=int, default=0,
                     help="headless only: stop after N frames")
     ap.add_argument("--no-loop", action="store_true")
+    ap.add_argument("--thin", type=int, default=2, metavar="N",
+                    help="keep every Nth frame of a stretch where nothing in the "
+                         "lot changes. 1 disables it and replays every frame.")
     ap.add_argument("--start", default=None,
                     help="begin replay at this time of day, e.g. 11:30. The "
                          "dataset opens before dawn on an empty lot, which is "
@@ -109,6 +114,8 @@ def main():
     pipeline = Pipeline(
         dirs[0], args.camera, fps=args.fps, loop=not args.no_loop
     )
+    if args.thin > 1:
+        pipeline.thin_idle(keep_every=args.thin)
     if args.start:
         pipeline.seek(args.start)
     layout, projector = build_layout(pipeline.frames, args.camera)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Analytics, ParkState } from "../lib/contract";
-import { reconstruct, type OccupancySeries } from "../lib/analytics";
+import { fromLevels, reconstruct, type OccupancySeries } from "../lib/analytics";
 
 /** History changes slowly. Polling harder only makes the aggregate refresh more often. */
 const REFRESH_MS = 30_000;
@@ -57,8 +57,12 @@ export function useAnalytics(
     };
   }, [fetchAnalytics]);
 
+  // Prefer the recorded curve. reconstruct() is the fallback for the mock and for a pipeline
+  // old enough not to send levels, and it is approximate at the far end by construction.
   const series = raw
-    ? reconstruct(raw.buckets, state?.summary.occupied ?? 0, state?.summary.total ?? 0)
+    ? raw.levels && raw.levels.length > 0
+      ? fromLevels(raw.levels, raw.buckets, state?.summary.total ?? 0)
+      : reconstruct(raw.buckets, state?.summary.occupied ?? 0, state?.summary.total ?? 0)
     : null;
 
   return { series, loading, error };
