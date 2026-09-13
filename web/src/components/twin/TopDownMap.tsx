@@ -5,7 +5,6 @@ import type { Point } from "../../lib/contract";
 import { MapDefs } from "./MapDefs";
 import { RouteLayer } from "./RouteLayer";
 import type { DriverRoute } from "../../hooks/useRoutes";
-import { CarLayer } from "./CarLayer";
 import { StallLayer, statusSignature } from "./StallLayer";
 
 /**
@@ -100,8 +99,6 @@ export function TopDownMap({ layout, state, heldSpot = null, route, onSelect, dr
       {/* Above the stalls so it is never hidden by one, below the cars so a vehicle driving
           the route still reads as being on top of it. */}
       {route && route.length > 1 && <RouteLayer route={route} drivers={drivers} />}
-
-      <CarLayer cars={state?.cars ?? []} />
 
       {/* The car the driver is in, drawn where their route begins.
 
