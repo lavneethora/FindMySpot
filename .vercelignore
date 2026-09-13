@@ -1,0 +1,13 @@
+# Only web/ and contracts/ are needed to build the frontend. Everything else
+# here is large and irrelevant to a static build, and uploading it would mean
+# pushing gigabytes for a 400 kB bundle.
+data/
+venv/
+deploy/
+parktech/
+scripts/
+__pycache__/
+*.pyc
+.env
+web/node_modules/
+web/dist/
