@@ -57,7 +57,7 @@ const toneInk = {
 
 export function Pill({ children, tone = "neutral", title, glass = false }: PillProps) {
   const dot = tone === "live" && (
-    <span aria-hidden className="size-2 shrink-0 animate-hold-pulse rounded-full bg-open-edge" />
+    <span aria-hidden className="size-2.5 shrink-0 animate-hold-pulse rounded-full bg-open-edge" />
   );
 
   if (glass) {
