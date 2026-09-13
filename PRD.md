@@ -18,7 +18,9 @@ tutorial has: free annotations, and a **measured accuracy number** instead of an
 
 **Known weaknesses, stated up front so they get managed rather than discovered:**
 - Parking occupancy via YOLO plus polygons is a heavily tutorialized problem. Innovation score
-  depends entirely on the homography rectification and the measured accuracy, not the detection.
+  depends on the measured accuracy and the occupancy geometry, not on the detection itself.
+  The homography this originally leaned on was dropped: PUCPR's camera is already near overhead,
+  so rectifying it distorted the map more than it corrected.
 - The footage is from Brazil, not the Innovation Hub. The local-grounding advantage is gone.
   Compensate with rigor (accuracy numbers) and an explicit TTU deployment-target slide.
 - Theme fit is a stretch. Bridge it once, cleanly, and move on.
@@ -528,8 +530,14 @@ admitting it.
   question.
 - *How is this different from SpotHero or ParkMobile?* They handle reservations and payment.
   None of them know whether a physical stall is empty right now. That gap is the claim
-- *Did you hand-annotate the stalls?* No. Four clicks calibrate a camera, and the rectification
-  handles arbitrary mounting angles. That is the honest answer to the scaling question
+- *Did you hand-annotate the stalls?* **Answer this one carefully, it is a claim about how the
+  system scales and it changed during the build.** Stall outlines come from the dataset's own
+  annotations, and row grouping is a short config per camera. So: "a new camera is set up once,
+  by marking its stalls and grouping its rows. Minutes, at install, the same as any camera
+  system. After that it runs unattended, and nothing is retrained."
+  **Do not say the rectification handles arbitrary mounting angles.** That was true of an
+  earlier build. The map is now a uniform schematic derived from the real row structure, and
+  automatic stall discovery is on the "what's next" slide, not in the product.
 
 ---
 
@@ -542,10 +550,14 @@ admitting it.
   detector size before proceeding
 - Confirm debounce works: no stall changes state more than once per 3 frames on a static stretch
 
-**Homography:**
-- `python calibrate.py` then visually confirm warped stall polygons form a regular grid.
-  If the rectified stalls look like a fan rather than a grid, the 4 clicked points were not
-  coplanar on the ground. Reclick
+**Layout:**
+- `python run.py --headless --limit 3` prints the row grouping it built. Rows should match
+  `config/rows.json`, and aisles should sit where the lot actually has tarmac
+- Grass versus aisle is classified by sampling pixel greenness between rows in the real frame,
+  so a gap marked drivable should be grey in the source image, not green
+
+`calibrate.py` and `parktech/homography.py` remain in the tree for a camera with no annotations,
+which is the real deployment path. Neither runs in the demo.
 
 **End to end:**
 - Start `run.py`, open the web app, confirm the camera panel and twin agree on every stall
