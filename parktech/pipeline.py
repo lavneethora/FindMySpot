@@ -344,7 +344,7 @@ class Pipeline:
             "last_event": self.last_event,
         }
 
-    def _crop_to_zone(self, image, spaces, pad=28, top_pad=0):
+    def _crop_to_zone(self, image, spaces, pad=28, top_pad=6):
         """Trim the frame to the stalls we actually monitor.
 
         The camera sees far more of the lot than the dataset labels: roads, a
@@ -353,11 +353,12 @@ class Pipeline:
         map has no stall for. They are detected and then discarded, because
         there is nothing to assign them to.
 
-        The top edge gets no padding at all, unlike the other three. Directly
+        The top edge gets a few pixels where the others get a margin. Directly
         above the first monitored row sits another row of cars the dataset
-        never labelled, and even a small margin pulled it into shot: a whole
-        row of unboxed cars above the boxed ones, which reads as the detector
-        missing them. Cutting flush with the first row removes the question.
+        never labelled, and 28px of margin pulled it into shot: a row of
+        unboxed cars above the boxed ones, which reads as the detector missing
+        them. Six pixels is enough to keep the first row's outline from being
+        sliced in half and not enough to show what is above it.
 
         Returns the cropped image and the (dx, dy) to shift stall coordinates.
         """
