@@ -1,6 +1,7 @@
 import type { Layout, ParkState } from "../lib/contract";
 import type { Connection } from "../lib/source";
 import { Pill } from "./ui/Badge";
+import { pathOf, type Route } from "../lib/router";
 
 const CONNECTION: Record<Connection, { copy: string; tone: "neutral" | "live" | "warn"; title: string }> = {
   connecting: { copy: "Connecting", tone: "neutral", title: "Reaching for the pipeline" },
@@ -13,9 +14,11 @@ interface AppHeaderProps {
   layout: Layout | null;
   state: ParkState | null;
   connection: Connection;
+  route: Route;
+  onNavigate: (next: Route) => void;
 }
 
-export function AppHeader({ layout, state, connection }: AppHeaderProps) {
+export function AppHeader({ layout, state, connection, route, onNavigate }: AppHeaderProps) {
   const link = CONNECTION[connection];
 
   // The frame timestamp is the lot's own clock, which for PKLot is 2013. Labelling it as such
@@ -35,6 +38,20 @@ export function AppHeader({ layout, state, connection }: AppHeaderProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* A real link, not a button: the operator view has its own URL, and the demo wants it
+            openable in a second window alongside the driver view. Intercepted so the app does
+            not reload and drop the WebSocket. */}
+        <a
+          href={pathOf(route === "ops" ? "driver" : "ops")}
+          onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+            event.preventDefault();
+            onNavigate(route === "ops" ? "driver" : "ops");
+          }}
+          className="inline-flex h-7 items-center rounded-full border border-card-border bg-white/50 px-3 text-caption font-medium text-ink/70 transition-[filter] hover:brightness-95"
+        >
+          {route === "ops" ? "Driver view" : "Operator view"}
+        </a>
         {lotTime && <Pill title="Timestamp of the frame this state came from">Lot time {lotTime}</Pill>}
         <Pill tone={link.tone} title={link.title}>
           {link.copy}

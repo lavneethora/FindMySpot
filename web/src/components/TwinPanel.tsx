@@ -29,8 +29,8 @@ export function TwinPanel({ layout, state, heldSpot = null, route, onSelect }: T
         title="Digital twin"
         hint={
           layout
-            ? `${Object.keys(layout.spots).length} stalls, rectified to an overhead view by a four point homography. Click a free stall to hold it.`
-            : "Rectified to an overhead view by a four point homography."
+            ? `${Object.keys(layout.spots).length} stalls, drawn to scale from the lot's real row structure. Click a free stall to hold it.`
+            : "Drawn to scale from the lot's real row structure."
         }
       />
 
