@@ -518,7 +518,14 @@ const glassHeader = render(
 const surfaces = (glassHeader.match(/backdrop-filter:url\(&quot;#liquid-glass&quot;\)|backdropFilter/g) ?? []).length;
 check("every header pill gets a refraction layer", surfaces >= 4, `${surfaces} layers`);
 check("the pills are round", (glassHeader.match(/rounded-full/g) ?? []).length >= 8);
-check("the glass carries a rim", glassHeader.includes("inset_1.5px_1.5px"));
+check("the glass carries a rim", glassHeader.includes("inset_0_1px_0.5px_rgba(255,255,255,0.98)"));
+// The rim and the sheen are painted rather than sampled, which is what makes the pill read as
+// glass even where the backdrop is flat cream and the refraction has nothing to bend.
+check("the glass carries a painted sheen", glassHeader.includes("linear-gradient(135deg"));
+check(
+  "the pills are 40px, the control height DESIGN.md specifies",
+  glassHeader.includes("h-10"),
+);
 
 // The reference component would have made these buttons. They must stay a link and spans, or
 // middle click and open in new window stop working and the two screen demo breaks.
