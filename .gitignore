@@ -33,3 +33,4 @@ web/.vite/
 
 # Local editor/tooling config
 .claude/
+.vercel
