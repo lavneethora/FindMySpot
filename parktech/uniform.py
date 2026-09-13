@@ -15,11 +15,19 @@ k-means, because parking rows are separated by aisles that show up as clear
 gaps, and a gap split cannot invent a row that is not there.
 """
 
+from itertools import pairwise
+
 import numpy as np
 
-# A stall is about twice as deep as it is wide. Keeps the map readable at a
-# glance instead of looking like a bar chart.
-STALL_ASPECT = 2.0
+# Depth as a multiple of width. A real bay is roughly 2.5m by 5m, but drawing
+# that ratio across a 22 stall row makes each one a thin sliver that reads as a
+# bar chart rather than somewhere you park a car. Squatter is more legible and
+# still unmistakably a parking space.
+STALL_ASPECT = 1.35
+
+# Fraction of a stall's width left as a gap to its neighbour. Small, because
+# bays are painted next to each other, not spaced out.
+STALL_PADDING = 0.04
 
 # Gaps between rows, in normalized units. Real lots are built to a standard:
 # every driving aisle is the same width, and every planted median is the same
@@ -161,28 +169,38 @@ def build(spaces, margin=0.06, row_spec=None, drivable_gaps=None):
     def norm_y(y):
         return margin + (y - lot_y0) / span_y * usable
 
-    # One stall width for the whole lot, chosen so that no row overflows the
-    # horizontal footprint it really occupies. Taking the tightest row keeps
-    # every other row comfortably inside its own span.
+    # One stall width for the whole lot, set by the longest row so that row
+    # spans the map. Sizing to the tightest row instead made every stall a
+    # sliver: the narrowest row is narrow because its bays are wider, not
+    # because the lot is, and honouring that shrank all 100 stalls to suit one
+    # row of twelve.
+    # Each row starts at its true horizontal offset, so the width a row can use
+    # is whatever remains between that offset and the right margin. Take the
+    # tightest of those, or a row that starts far right runs off the map.
+    right = 1.0 - margin
     stall_w = usable
     for row in rows:
         row_pts = [p for s in row for p in s.contour]
-        row_span = norm_x(max(p[0] for p in row_pts)) - norm_x(min(p[0] for p in row_pts))
-        stall_w = min(stall_w, row_span / len(row))
+        left = norm_x(min(p[0] for p in row_pts))
+        stall_w = min(stall_w, (right - left) / len(row))
 
     # Rows are stacked by the real gap between their EDGES, not between their
-    # centres. Centre spacing includes the depth of the stalls themselves, so
-    # using it made an 8px grass strip render as a huge band. Stall height is
-    # the median real depth, which keeps stalls uniform while the gaps between
-    # rows stay proportional to the lot.
+    # Only the first row's real position is needed; everything below it is
+    # stacked by fixed aisle and median widths, so the map stops inheriting the
+    # camera's foreshortening.
     row_top = [norm_y(min(p[1] for s in row for p in s.contour)) for row in rows]
-    row_bot = [norm_y(max(p[1] for s in row for p in s.contour)) for row in rows]
-    stall_h = float(np.median([b - t for t, b in zip(row_top, row_bot)]))
+
+    # Depth follows the width, not the camera. The annotated depth carries that
+    # same foreshortening, which made near rows deep and far rows shallow on a
+    # map that is meant to show neither.
+    stall_h = stall_w * STALL_ASPECT
 
     # Every aisle the same width, every median the same width. A lot is built
     # to a standard, and measuring the gaps off the camera reproduced its
     # perspective: the far aisle came out half the width of the near one even
     # though a car needs the same room in both.
+    # Gap i sits between row i and row i+1. Index len(rows)-1 means the aisle
+    # BELOW the last row, which a lot needs or its bottom row is unreachable.
     drivable = set(drivable_gaps or [])
     edge_gaps = [
         AISLE_GAP if i in drivable else GRASS_GAP
@@ -194,13 +212,15 @@ def build(spaces, margin=0.06, row_spec=None, drivable_gaps=None):
     for gap in edge_gaps:
         tops.append(tops[-1] + stall_h + gap)
 
-    # If uniform depth pushed the block past the canvas, scale the whole stack
-    # back into range rather than clipping the last row off the map.
-    overflow = (tops[-1] + stall_h) - (1.0 - margin)
-    if overflow > 0:
-        shrink = (1.0 - 2 * margin) / (tops[-1] + stall_h - tops[0])
-        stall_h *= shrink
-        tops = [margin + (t - tops[0]) * shrink for t in tops]
+    # Shrink to fit if the stack overflows, but never stretch to fill. Stalls
+    # are drawn to a fixed proportion so they read as parking bays; scaling
+    # them vertically to use up spare canvas turns them back into slivers. The
+    # frontend fits the viewport to whatever the map actually occupies.
+    block = (tops[-1] + stall_h) - tops[0]
+    if block > (1.0 - 2 * margin):
+        scale = (1.0 - 2 * margin) / block
+        stall_h *= scale
+        tops = [margin + (t - tops[0]) * scale for t in tops]
 
     layout = {}
     for r, row in enumerate(rows):
@@ -211,7 +231,7 @@ def build(spaces, margin=0.06, row_spec=None, drivable_gaps=None):
         for i, space in enumerate(row):
             x0 = left + i * stall_w
             x1 = x0 + stall_w
-            pad = stall_w * 0.07
+            pad = stall_w * STALL_PADDING
             layout[space.id] = {
                 "polygon": [
                     [round(x0 + pad, 4), round(y0, 4)],
@@ -240,40 +260,53 @@ def to_layout(spaces, camera_id, row_spec=None, drivable_gaps=None,
 
     drivable = set(drivable_gaps or [])
 
-    # A lot is entered from a road, then you drive along a feeder lane and turn
-    # into an aisle. Modelling the entrance as a lone point at the bottom with
-    # a line straight to a stall drew routes across parked cars and grass.
+    # The lane network. Real lots are a grid: aisles run across the lot, and
+    # perpendicular lanes run down both sides joining them. Routes travel along
+    # those lanes only, which is why a path can never cut diagonally across
+    # parked cars.
     #
-    # So: one vertical feeder lane down the left edge, connected to the mouth
-    # of every drivable aisle, with the entrance at the bottom of the feeder.
-    lane_x = 0.035
-    entrance = {"x": lane_x, "y": 0.97}
+    #   left lane                            right lane
+    #      |                                      |
+    #      +---------- aisle (row gap) -----------+
+    #      |                                      |
+    #      +---------- aisle (row gap) -----------+
+    left_x, right_x = 0.030, 0.970
 
-    nodes = {"entrance": [lane_x, entrance["y"]]}
-    edges = []
-
-    aisle_names = []
+    aisle_ys = []
     for gap_index in sorted(drivable):
-        if gap_index + 1 >= len(rows):
-            continue
-        above = max(layout[s.id]["polygon"][2][1] for s in rows[gap_index])
-        below = min(layout[s.id]["polygon"][0][1] for s in rows[gap_index + 1])
-        mid_y = round((above + below) / 2, 4)
+        if gap_index + 1 < len(rows):
+            above = max(layout[s.id]["polygon"][2][1] for s in rows[gap_index])
+            below = min(layout[s.id]["polygon"][0][1] for s in rows[gap_index + 1])
+            aisle_ys.append((gap_index, round((above + below) / 2, 4)))
+        elif gap_index == len(rows) - 1:
+            # An aisle below the bottom row. Without it that row has no road
+            # touching it and the map says you cannot park there.
+            last = max(layout[s.id]["polygon"][2][1] for s in rows[-1])
+            aisle_ys.append((gap_index, round(last + AISLE_GAP / 2, 4)))
+    aisle_ys.sort(key=lambda pair: pair[1])
 
-        mouth = f"lane_{gap_index}"
-        nodes[mouth] = [lane_x, mid_y]
-        aisle_names.append((mid_y, mouth, gap_index))
+    nodes, edges = {}, []
+    for gap_index, y in aisle_ys:
+        nodes[f"L{gap_index}"] = [left_x, y]
+        nodes[f"R{gap_index}"] = [right_x, y]
+        edges.append([f"L{gap_index}", f"R{gap_index}"])
 
-    # Feeder lane runs bottom to top, entrance first.
-    aisle_names.sort(reverse=True)
-    previous = "entrance"
-    for mid_y, mouth, gap_index in aisle_names:
-        edges.append([previous, mouth])
-        previous = mouth
-        # The aisle itself, running across the lot from the feeder lane.
-        far = f"aisle_{gap_index}"
-        nodes[far] = [0.96, mid_y]
-        edges.append([mouth, far])
+    # Side lanes join consecutive aisles, so the grid is connected and a driver
+    # can reach any aisle from any other.
+    for (a, _ay), (b, _by) in pairwise(aisle_ys):
+        edges.append([f"L{a}", f"L{b}"])
+        edges.append([f"R{a}", f"R{b}"])
+
+    # The entrance hangs off the lowest aisle on the left.
+    if aisle_ys:
+        lowest = aisle_ys[-1][0]
+        entrance = {"x": left_x, "y": round(aisle_ys[-1][1] + AISLE_GAP * 0.8, 4)}
+        nodes["entrance"] = [entrance["x"], entrance["y"]]
+        edges.append(["entrance", f"L{lowest}"])
+    else:
+        last = max(layout[s.id]["polygon"][2][1] for s in rows[-1])
+        entrance = {"x": left_x, "y": round(min(0.98, last + 0.06), 4)}
+        nodes["entrance"] = [entrance["x"], entrance["y"]]
 
     spots = {}
     for spot_id, cell in layout.items():
