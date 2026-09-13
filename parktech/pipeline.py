@@ -10,6 +10,7 @@ occupancy curve instead of a fabricated one.
 import threading
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import cv2
 
@@ -106,18 +107,33 @@ class Pipeline:
             self._model = YOLO(MODEL)
         return self._model
 
-    def process_frame(self, jpg, xml):
-        """Run one frame end to end. Returns the published state payload."""
-        model = self._load_model()
-        spaces = pklot.parse_spaces(xml)
-        image = cv2.imread(str(jpg))
+    def detect(self, jpg):
+        """Vehicle boxes for one frame, from the cache when we have it.
 
+        The cached boxes are byte for byte what the model produced with the
+        same settings, so this is an execution shortcut and not an accuracy
+        shortcut. See parktech/cache.py.
+        """
+        if self._cache is not None:
+            cached = self._cache.get(Path(jpg).name)
+            if cached is not None:
+                return [row[:4] for row in cached], [row[4] for row in cached]
+
+        model = self._load_model()
         result = model.predict(str(jpg), imgsz=IMGSZ, conf=CONF, verbose=False)[0]
         boxes, confs = [], []
         for b in result.boxes:
             if int(b.cls) in VEHICLE_CLASSES:
                 boxes.append([float(v) for v in b.xyxy[0]])
                 confs.append(float(b.conf))
+        return boxes, confs
+
+    def process_frame(self, jpg, xml):
+        """Run one frame end to end. Returns the published state payload."""
+        spaces = pklot.parse_spaces(xml)
+        image = cv2.imread(str(jpg))
+
+        boxes, confs = self.detect(jpg)
 
         matches = occupancy.match_overlap(spaces, boxes, OVERLAP_THRESHOLD)
         self._matched_boxes = set(matches.values())
