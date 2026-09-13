@@ -1,4 +1,4 @@
-# ParkTech
+# FindMySpot
 
 A computer-vision layer for parking infrastructure that already exists. It turns an ordinary
 fixed camera into a live map of which stalls are open, which one you should take, and how the
@@ -7,7 +7,7 @@ lot gets used over time.
 ## The problem
 
 Parking lots already have capacity and already have cameras. Nobody knows which specific stalls
-are free right now, so drivers circle, congest the lot, and arrive late. ParkTech does not add
+are free right now, so drivers circle, congest the lot, and arrive late. FindMySpot does not add
 parking. It makes the parking that exists observable.
 
 ## What it does
