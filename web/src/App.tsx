@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useParkTech } from "./hooks/useParkTech";
+import { useFindMySpot } from "./hooks/useFindMySpot";
 import { useActivityLog } from "./hooks/useActivityLog";
 import { useRoutes } from "./hooks/useRoutes";
 import { useAnalytics } from "./hooks/useAnalytics";
@@ -11,7 +11,7 @@ import { DriverView } from "./views/DriverView";
 import { OpsView } from "./views/OpsView";
 
 export default function App() {
-  const { layout, state, connection, error, hold, fetchAnalytics } = useParkTech();
+  const { layout, state, connection, error, hold, fetchAnalytics } = useFindMySpot();
   const events = useActivityLog(state);
   // Which stall the driver is being shown the way to. Not a reservation: nothing physically
   // stops another car taking it, so the product does not pretend to hold it.

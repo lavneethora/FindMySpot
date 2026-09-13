@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Analytics, Hold, Layout, ParkState } from "../lib/contract";
 import { createSource, type Connection, type Source } from "../lib/source";
 
-export interface ParkTech {
+export interface FindMySpot {
   layout: Layout | null;
   state: ParkState | null;
   connection: Connection;
@@ -18,7 +18,7 @@ export interface ParkTech {
   fetchAnalytics: () => Promise<Analytics>;
 }
 
-export function useParkTech(): ParkTech {
+export function useFindMySpot(): FindMySpot {
   const [layout, setLayout] = useState<Layout | null>(null);
   const [state, setState] = useState<ParkState | null>(null);
   const [connection, setConnection] = useState<Connection>("connecting");
