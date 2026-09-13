@@ -1,4 +1,5 @@
 import type { Layout, ParkState, Point } from "../lib/contract";
+import type { DriverRoute } from "../hooks/useRoutes";
 import { STATUS_ORDER, styleFor } from "../lib/status";
 import { Panel, PanelHead } from "./ui/Panel";
 import { Placeholder } from "./ui/Placeholder";
@@ -9,7 +10,7 @@ interface TwinPanelProps {
   state: ParkState | null;
   heldSpot?: string | null;
   route?: Point[];
-  otherRoutes?: Point[][];
+  drivers?: DriverRoute[];
   onSelect?: (spotId: string) => void;
 }
 
@@ -17,7 +18,7 @@ interface TwinPanelProps {
  * The digital twin. `solid` rather than `glass` because the map animates on every state
  * change and must not sit under a backdrop filter.
  */
-export function TwinPanel({ layout, state, heldSpot = null, route, onSelect, otherRoutes }: TwinPanelProps) {
+export function TwinPanel({ layout, state, heldSpot = null, route, onSelect, drivers }: TwinPanelProps) {
   const counts = STATUS_ORDER.map((status) => ({
     status,
     style: styleFor(status),
@@ -41,7 +42,7 @@ export function TwinPanel({ layout, state, heldSpot = null, route, onSelect, oth
       >
         {layout ? (
           <TopDownMap layout={layout} state={state} heldSpot={heldSpot} route={route}
-        otherRoutes={otherRoutes} onSelect={onSelect} />
+        drivers={drivers} onSelect={onSelect} />
         ) : (
           <Placeholder what="Waiting for the lot layout." ratio="var(--twin-aspect)" />
         )}
