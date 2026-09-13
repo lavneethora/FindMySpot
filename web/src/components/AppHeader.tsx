@@ -31,7 +31,7 @@ export function AppHeader({ layout, state, connection, route, onNavigate }: AppH
   return (
     <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
       <div className="flex items-baseline gap-4">
-        <h1 className="font-display text-title font-semibold">ParkTech</h1>
+        <h1 className="font-display text-title font-semibold">FindMySpot</h1>
         <p className="text-nav text-ink/60">
           {layout?.lot_name ?? "Loading the lot"}
           {layout && <span className="text-ink/35"> · {layout.camera_id}</span>}
