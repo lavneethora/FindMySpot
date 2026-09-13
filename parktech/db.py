@@ -172,13 +172,18 @@ def record_level(camera_id, when, occupied, available, total):
 
 
 def occupancy_levels(camera_id, hours=24):
-    """The actual occupancy curve, off the level aggregate."""
+    """The occupancy curve, off the level aggregate.
+
+    Windowed back from the newest bucket rather than from now(), for the same
+    reason as occupancy_history.
+    """
     with connect() as conn:
         return conn.execute(
             "SELECT bucket, avg_occupied, peak_occupied, total "
-            "FROM occupancy_level_5min WHERE camera_id = %s "
-            "AND bucket > now() - %s::interval ORDER BY bucket",
-            (camera_id, f"{hours} hours"),
+            "FROM occupancy_level_5min WHERE camera_id = %s AND bucket > "
+            "(SELECT max(bucket) FROM occupancy_level_5min WHERE camera_id = %s) "
+            "- %s::interval ORDER BY bucket",
+            (camera_id, camera_id, f"{hours} hours"),
         ).fetchall()
 
 
@@ -253,13 +258,20 @@ def release_hold(camera_id, spot_id):
 
 
 def occupancy_history(camera_id, hours=24):
-    """Rows for the analytics chart, straight off the continuous aggregate."""
+    """Arrivals and departures per bucket, off the continuous aggregate.
+
+    The window is measured back from the newest bucket we hold, not from
+    now(). Events carry the frame's capture time, which for PKLot is 2012, so
+    anchoring to wall clock meant the default 24 hour window could never reach
+    the data and the chart was always empty.
+    """
     with connect() as conn:
         return conn.execute(
             "SELECT bucket, became_occupied, became_available "
-            "FROM occupancy_5min WHERE camera_id = %s "
-            "AND bucket > now() - %s::interval ORDER BY bucket",
-            (camera_id, f"{hours} hours"),
+            "FROM occupancy_5min WHERE camera_id = %s AND bucket > "
+            "(SELECT max(bucket) FROM occupancy_5min WHERE camera_id = %s) "
+            "- %s::interval ORDER BY bucket",
+            (camera_id, camera_id, f"{hours} hours"),
         ).fetchall()
 
 
