@@ -291,6 +291,21 @@ def to_layout(spaces, camera_id, row_spec=None, drivable_gaps=None,
         nodes[f"R{gap_index}"] = [right_x, y]
         edges.append([f"L{gap_index}", f"R{gap_index}"])
 
+    # A perimeter road round the outside. Lots have one, and without it the
+    # only way between the top and bottom of the lot is back down the side
+    # lanes, which makes some routes take a longer way round than a driver
+    # would. The top edge also serves the first row, which otherwise has an
+    # aisle on one side only.
+    if aisle_ys:
+        first_top = min(layout[s.id]["polygon"][0][1] for s in rows[0])
+        top_y = round(max(0.012, first_top - AISLE_GAP * 0.6), 4)
+        nodes["TL"] = [left_x, top_y]
+        nodes["TR"] = [right_x, top_y]
+        edges.append(["TL", "TR"])
+        first_gap = aisle_ys[0][0]
+        edges.append(["TL", f"L{first_gap}"])
+        edges.append(["TR", f"R{first_gap}"])
+
     # Side lanes join consecutive aisles, so the grid is connected and a driver
     # can reach any aisle from any other.
     for (a, _ay), (b, _by) in pairwise(aisle_ys):
