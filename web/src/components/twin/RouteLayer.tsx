@@ -19,6 +19,9 @@ interface RouteLayerProps {
  * lets the dash animation work in fractions of the route, so the same keyframes look right
  * whether the stall is the nearest one or the furthest.
  */
+/** One colour per car, so three paths down the same lane stay tellable apart. */
+const DRIVER_COLOURS = ["#2f6f8e", "#8a5cc4", "#b8722a"];
+
 export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
   if (route.length < 2) return null;
 
@@ -30,18 +33,24 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
 
   return (
     <g key={key} pointerEvents="none">
-      {drivers.map((driver) => {
+      {drivers.map((driver, index) => {
         const [cx, cy] = units([driver.x, driver.y]);
+        const colour = DRIVER_COLOURS[index % DRIVER_COLOURS.length];
+        // Cars share lanes, so their routes lie on top of each other and three
+        // paths read as one. Nudging each a little to one side draws them as
+        // parallel lines down the same lane, which is what a driver sees
+        // anyway: several cars in the aisle, not one.
+        const nudge = (index - (drivers.length - 1) / 2) * 9;
         return (
-          <g key={`driver-${driver.id}`}>
+          <g key={`driver-${driver.id}`} transform={`translate(${nudge} ${nudge})`}>
             {driver.route.length >= 2 && (
               <polyline
                 points={path(driver.route)}
                 fill="none"
-                stroke="var(--color-taken)"
-                strokeOpacity={0.5}
-                strokeWidth={7}
-                strokeDasharray="14 12"
+                stroke={colour}
+                strokeOpacity={0.9}
+                strokeWidth={5}
+                strokeDasharray="16 10"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -50,21 +59,20 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
                 vehicle waiting in the aisle, not as another occupied stall. */}
             <g transform={`translate(${cx} ${cy})`}>
               <rect
-                x={-9}
-                y={-14}
-                width={18}
-                height={28}
-                rx={5}
-                fill="var(--color-taken)"
-                fillOpacity={0.85}
-                stroke="rgb(255 253 250 / 0.9)"
-                strokeWidth={2.5}
+                x={-13}
+                y={-19}
+                width={26}
+                height={38}
+                rx={7}
+                fill={colour}
+                stroke="rgb(255 253 250 / 0.95)"
+                strokeWidth={3}
               />
               <text
-                y={5}
+                y={6}
                 textAnchor="middle"
-                fontSize={13}
-                fontWeight={600}
+                fontSize={17}
+                fontWeight={700}
                 fill="rgb(255 253 250)"
               >
                 {driver.id}
