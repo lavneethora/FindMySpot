@@ -4,7 +4,7 @@
  */
 export function Mesh() {
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-paper">
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-ground">
       <div className="absolute -top-40 -left-32 h-[40rem] w-[40rem] rounded-full bg-bloom-amber opacity-40 blur-[120px]" />
       <div className="absolute top-1/4 -right-40 h-[36rem] w-[36rem] rounded-full bg-bloom-sage opacity-35 blur-[130px]" />
       {/* Sits behind the header pills, top right, which was bare cream before. Glass can only
@@ -12,12 +12,20 @@ export function Mesh() {
           and the pills read as flat. Low opacity: this is there to be distorted, not seen. */}
       <div className="absolute -top-56 right-[-6rem] h-[34rem] w-[34rem] rounded-full bg-bloom-clay opacity-30 blur-[110px]" />
       <div className="absolute -bottom-48 left-1/4 h-[32rem] w-[32rem] rounded-full bg-bloom-clay opacity-30 blur-[140px]" />
-      {/* A whisper of grain. Large flat gradients band badly on a projector. */}
+      {/* Real grain, not generated. feTurbulence stood in here before and looked like static
+          rather than paper: it is uniform noise, where a scanned grain has clumps and grain
+          direction. It also costs the compositor real time to regenerate across a large
+          viewport, which a tiled PNG does not.
+
+          The file is baked very faint, average alpha around 0.07, so 0.6 opacity is doing
+          real work rather than being a light touch. Tiled at 90px: large enough that the
+          repeat is not visible, small enough that the texture reads at arm's length. */}
       <div
-        className="absolute inset-0 opacity-[0.035] mix-blend-multiply"
+        className="absolute inset-0 opacity-60"
         style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          backgroundImage: 'url("/bgNoise.png")',
+          backgroundRepeat: "repeat",
+          backgroundSize: "90px 90px",
         }}
       />
     </div>
