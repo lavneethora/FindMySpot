@@ -70,6 +70,10 @@
 @theme {
   /* ---- Surfaces, straight from DESIGN.md section 2 ---- */
   --color-paper: #fffdfa;
+  /* The ground the whole interface sits on. Warmer than paper on purpose: a near white
+     ground under near white panels gives the panels no edge, and the grain has nothing to
+     tint. Paper stays as it was, since panels and chart marks still want the lighter tone. */
+  --color-ground: #f9f5ec;
   --color-surface: #eeebe6;
   --color-card: #ffffff;
   --color-card-border: #e2e1de;
@@ -249,7 +253,7 @@
   }
 
   body {
-    background-color: var(--color-paper);
+    background-color: var(--color-ground);
     color: var(--color-ink);
     font-family: var(--font-body);
     font-size: var(--text-body);
