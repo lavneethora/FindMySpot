@@ -5,6 +5,7 @@ import { useHold } from "./hooks/useHold";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useRoute } from "./lib/router";
 import { Mesh } from "./components/ui/Mesh";
+import { LiquidGlassFilter } from "./components/ui/LiquidGlass";
 import { AppHeader } from "./components/AppHeader";
 import { DriverView } from "./views/DriverView";
 import { OpsView } from "./views/OpsView";
@@ -22,6 +23,8 @@ export default function App() {
   return (
     <>
       <Mesh />
+      {/* Defined once for the whole page. Every glass pill points its backdrop filter here. */}
+      <LiquidGlassFilter />
 
       {/* 1440 rather than the 1200 in DESIGN.md. That limit exists to keep prose line lengths
           readable on a marketing page, which does not apply to a full width lot map. */}
@@ -58,16 +61,15 @@ export default function App() {
           <DriverView layout={layout} state={state} holding={holding} onSelect={onSelect} />
         )}
 
-        <footer className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-ink/35">
-          {route === "ops" ? (
-            <>
-              <span>Footage is the PKLot benchmark, not the Innovation Hub.</span>
-              <span>Accuracy is measured against the dataset's own ground truth.</span>
-            </>
-          ) : (
+        {/* The operator footer carried the benchmark and ground truth notes. Both are said out
+            loud in the pitch and both live on the honesty slide, so on screen they were
+            duplication under a panel nobody reads. The privacy line stays on the driver view,
+            where it is the one claim a driver has no other way to check. */}
+        {route !== "ops" && (
+          <footer className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-ink/35">
             <span>Only occupancy state leaves the camera. No faces, no plates, no stored video.</span>
-          )}
-        </footer>
+          </footer>
+        )}
       </div>
     </>
   );
