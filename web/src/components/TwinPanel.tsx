@@ -26,12 +26,7 @@ export function TwinPanel({ layout, state, heldSpot = null, route, onSelect }: T
   return (
     <Panel tone="solid" className="flex flex-col">
       <PanelHead
-        title="Digital twin"
-        hint={
-          layout
-            ? `${Object.keys(layout.spots).length} stalls, drawn to scale from the lot's real row structure. Click a free stall to hold it.`
-            : "Drawn to scale from the lot's real row structure."
-        }
+        title="Digital Layout"
       />
 
       <div
