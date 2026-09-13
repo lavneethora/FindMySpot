@@ -9,6 +9,7 @@ interface TwinPanelProps {
   state: ParkState | null;
   heldSpot?: string | null;
   route?: Point[];
+  otherRoutes?: Point[][];
   onSelect?: (spotId: string) => void;
 }
 
@@ -16,7 +17,7 @@ interface TwinPanelProps {
  * The digital twin. `solid` rather than `glass` because the map animates on every state
  * change and must not sit under a backdrop filter.
  */
-export function TwinPanel({ layout, state, heldSpot = null, route, onSelect }: TwinPanelProps) {
+export function TwinPanel({ layout, state, heldSpot = null, route, onSelect, otherRoutes }: TwinPanelProps) {
   const counts = STATUS_ORDER.map((status) => ({
     status,
     style: styleFor(status),
@@ -29,7 +30,7 @@ export function TwinPanel({ layout, state, heldSpot = null, route, onSelect }: T
         title="Digital twin"
         hint={
           layout
-            ? `${Object.keys(layout.spots).length} stalls, drawn to scale from the lot's real row structure. Click a free stall to hold it.`
+            ? `${Object.keys(layout.spots).length} stalls, drawn to scale from the lot's real row structure. Click a free stall to see the way there.`
             : "Drawn to scale from the lot's real row structure."
         }
       />
@@ -39,7 +40,8 @@ export function TwinPanel({ layout, state, heldSpot = null, route, onSelect }: T
         style={{ aspectRatio: "var(--twin-aspect)" }}
       >
         {layout ? (
-          <TopDownMap layout={layout} state={state} heldSpot={heldSpot} route={route} onSelect={onSelect} />
+          <TopDownMap layout={layout} state={state} heldSpot={heldSpot} route={route}
+        otherRoutes={otherRoutes} onSelect={onSelect} />
         ) : (
           <Placeholder what="Waiting for the lot layout." ratio="var(--twin-aspect)" />
         )}
