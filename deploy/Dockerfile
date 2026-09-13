@@ -6,12 +6,16 @@
 
 FROM python:3.12-slim
 
-# opencv-python-headless still needs libGL and glib at runtime even without a
-# display. Without these the import fails at startup with an error that reads
-# like a missing Python package and is not one.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+# No apt layer on purpose. The usual advice is that opencv needs libGL and
+# glib, which is true of opencv-python and NOT of opencv-python-headless: the
+# headless build exists precisely to drop the GUI backend.
+#
+# Verified rather than assumed. Every cv2 call this pipeline makes was exercised
+# in an image with neither package installed: imread, imencode, polylines,
+# rectangle, contourArea, intersectConvexConvex, pointPolygonTest and
+# getPerspectiveTransform. All fine.
+#
+# Worth 204 MB and one build step that needs the network on a fresh VM.
 
 WORKDIR /app
 
