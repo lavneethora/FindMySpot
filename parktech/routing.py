@@ -149,3 +149,57 @@ def route_to_stall(layout, spot_id, start_node="entrance"):
         path.append(turn)
     path.append([centroid[0], centroid[1]])
     return [[round(x, 4), round(y, 4)] for x, y in path]
+
+
+# Where the demo puts cars that are already circling the lot. Fractions along
+# the lane they sit on, so they land in an aisle rather than on top of a stall.
+DRIVER_SPOTS = (
+    ("L0", "R0", 0.30),
+    ("R2", "L2", 0.25),
+    ("TL", "TR", 0.55),
+)
+
+
+def simulated_drivers(layout):
+    """A few cars already in the lot, sitting on lanes.
+
+    Routing one driver to a stall proves the path is drivable. Routing several
+    from different corners to the SAME stall is what makes the lane network
+    legible: every path bends around the rows, because none of them can cross
+    one.
+
+    Each car is placed along a real lane, so the route from it starts on the
+    network rather than teleporting onto it.
+    """
+    nodes = layout.get("aisles", {}).get("nodes", {})
+    drivers = []
+    for index, (start, end, fraction) in enumerate(DRIVER_SPOTS, start=1):
+        if start not in nodes or end not in nodes:
+            continue
+        ax, ay = nodes[start]
+        bx, by = nodes[end]
+        drivers.append({
+            "id": index,
+            "x": round(ax + (bx - ax) * fraction, 4),
+            "y": round(ay + (by - ay) * fraction, 4),
+            # The lane node a route from this car starts at.
+            "node": start,
+        })
+    return drivers
+
+
+def route_from_driver(layout, driver, spot_id):
+    """Route from a car's own position, not just from its nearest lane node.
+
+    The car sits partway along a lane, so the path has to run along that lane
+    to the junction before joining the rest of the route. Without this the
+    route jumped from the car to the junction in a straight line, which crosses
+    whatever happens to be between them.
+    """
+    path = route_to_stall(layout, spot_id, driver.get("node", "entrance"))
+    if not path:
+        return []
+    here = [driver["x"], driver["y"]]
+    if _distance(here, path[0]) > 1e-6:
+        return [here, *path]
+    return path
