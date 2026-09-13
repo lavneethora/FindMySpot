@@ -1,14 +1,15 @@
 import type { Point } from "../../lib/contract";
+import type { DriverRoute } from "../../hooks/useRoutes";
 import { path, units } from "../../lib/geometry";
 
 interface RouteLayerProps {
   route: Point[];
   /**
-   * Routes from other drivers already in the lot, drawn faintly behind the main one.
-   * Several cars converging on the same stall is what makes the lane network legible:
-   * every path bends around the rows because no car can drive through one.
+   * Cars already circling the lot, each with its own path to the same stall, drawn behind
+   * the main one. Several cars converging on one space is what makes the lane network
+   * legible: every path bends around the rows, because no car can drive through one.
    */
-  others?: Point[][];
+  drivers?: DriverRoute[];
 }
 
 /**
@@ -18,7 +19,7 @@ interface RouteLayerProps {
  * lets the dash animation work in fractions of the route, so the same keyframes look right
  * whether the stall is the nearest one or the furthest.
  */
-export function RouteLayer({ route, others = [] }: RouteLayerProps) {
+export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
   if (route.length < 2) return null;
 
   const points = path(route);
@@ -29,26 +30,49 @@ export function RouteLayer({ route, others = [] }: RouteLayerProps) {
 
   return (
     <g key={key} pointerEvents="none">
-      {others
-        .filter((r) => r.length >= 2)
-        .map((r, i) => {
-          const [ox, oy] = units(r[0]);
-          return (
-            <g key={`other-${i}`} opacity={0.34}>
-              <path
-                d={path(r)}
+      {drivers.map((driver) => {
+        const [cx, cy] = units([driver.x, driver.y]);
+        return (
+          <g key={`driver-${driver.id}`}>
+            {driver.route.length >= 2 && (
+              <polyline
+                points={path(driver.route)}
                 fill="none"
-                stroke="var(--ink)"
-                strokeOpacity={0.35}
-                strokeWidth={0.9}
-                strokeDasharray="2 2"
+                stroke="var(--color-taken)"
+                strokeOpacity={0.5}
+                strokeWidth={7}
+                strokeDasharray="14 12"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <circle cx={ox} cy={oy} r={1.4} fill="var(--ink)" fillOpacity={0.4} />
+            )}
+            {/* The car itself. Drawn as a rounded body rather than a dot so it reads as a
+                vehicle waiting in the aisle, not as another occupied stall. */}
+            <g transform={`translate(${cx} ${cy})`}>
+              <rect
+                x={-9}
+                y={-14}
+                width={18}
+                height={28}
+                rx={5}
+                fill="var(--color-taken)"
+                fillOpacity={0.85}
+                stroke="rgb(255 253 250 / 0.9)"
+                strokeWidth={2.5}
+              />
+              <text
+                y={5}
+                textAnchor="middle"
+                fontSize={13}
+                fontWeight={600}
+                fill="rgb(255 253 250)"
+              >
+                {driver.id}
+              </text>
             </g>
-          );
-        })}
+          </g>
+        );
+      })}
       {/* A light underlay so the route stays legible crossing both the dark occupied stalls
           and the pale asphalt. */}
       <polyline
