@@ -6,6 +6,7 @@ contract, so changes here are additive only.
 
 import asyncio
 import json
+import os
 
 from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,11 +18,17 @@ from parktech import db, routing
 def create_app(pipeline, layout):
     app = FastAPI(title="FindMySpot")
 
-    # The frontend dev server runs on another port. This is a demo running on
-    # one laptop, not something exposed to a network.
+    # The frontend is served from somewhere else: another port in development,
+    # another host once deployed. Either way the browser needs permission.
+    #
+    # ALLOWED_ORIGINS narrows this to a comma separated list when the pipeline
+    # is reachable from the internet. Left unset it stays open, which is right
+    # for a laptop and wrong for a public host, so set it when you deploy.
+    configured = os.environ.get("ALLOWED_ORIGINS", "").strip()
+    origins = [o.strip() for o in configured.split(",") if o.strip()] or ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
