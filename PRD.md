@@ -44,7 +44,7 @@ closing-slide material only. Do not build them.
 1. Detect vehicles in PKLot footage and classify each annotated stall occupied or vacant
 2. Report per-stall accuracy against PKLot ground truth across a full replayed day
 3. Update state as occupancy changes, with debounce so nothing flickers
-4. Render a rectified top-down twin that stays synchronized with the camera panel
+4. Render a top-down twin, in a driver view that shows no camera footage
 5. Click a green stall, get a soft hold plus an animated in-lot route to it
 6. Show a real occupancy-over-time chart built from stored time-series events
 
@@ -70,11 +70,20 @@ PKLot day sequence (fixed camera, 5-min intervals, ~288 frames/day)
       |                          |
       +----------+---------------+
                  |
-        React frontend (single page)
-        |- Vision panel      (boxes, track IDs, stall outlines, live accuracy)
-        |- Digital twin      (homography-rectified top-down, red/green/amber)
-        |- Click to route    (soft hold + animated path)
-        `- Analytics strip   (occupancy curve, turnover, peak)
+        React frontend, TWO views
+        |
+        |- DRIVER VIEW  "/"        the product. What a user actually opens.
+        |   |- Digital twin        top-down map, red/green/amber
+        |   |- Click to route      soft hold + animated path
+        |   `- Best stall          nearest free spot to the entrance
+        |      NO camera feed. A driver has no business seeing surveillance
+        |      footage of a car park, and showing it contradicts our own
+        |      privacy claim that video never leaves the edge device.
+        |
+        `- OPERATOR VIEW  "/ops"   the technical proof, for judges and staff
+            |- Vision panel        boxes, stall outlines, live accuracy
+            |- Analytics strip     occupancy curve, turnover, peak
+            `- Camera health       the footage belongs here, and only here
 ```
 
 **Single Python process.** One `python run.py` starts replay, inference, the API, the MJPEG
@@ -134,23 +143,79 @@ hour 1, so neither person is ever blocked on the other.
 ## Key Technical Decisions
 
 **Detection:** COCO-pretrained `yolo11n.pt`, no training. Classes 2/5/7 (car, bus, truck).
-Ultralytics is not currently installed on this machine, so budget setup time. Use
-`model.track(persist=True, tracker="bytetrack.yaml")` for stable IDs, matching the
-`from ultralytics import YOLO` idiom already used in `football-kick-analyzer/processKickVideo.py`.
 
-**Occupancy test:** bottom-center of each box (`cx=(x1+x2)/2, cy=y2`, roughly where tires meet
-ground) tested with `cv2.pointPolygonTest` against the PKLot contour. Simpler and more robust
-than IoU for perspective views.
+**Vehicle identity: not ByteTrack.** This PRD originally specified
+`model.track(persist=True, tracker="bytetrack.yaml")` for stable ids. That cannot work here.
+ByteTrack associates detections by motion continuity between consecutive video frames, and PKLot
+frames are **five minutes apart**. A car that left and a different car that arrived are
+indistinguishable to it, so it would hand out confident, meaningless numbers.
+
+Identity is tied to stall occupancy instead: a vehicle is issued a number when a stall fills and
+keeps it until that stall empties. For parked cars this is both more honest and more useful,
+because it is what the activity feed wants to say anyway: "Vehicle 27 left stall 28".
+
+**Occupancy test:** polygon overlap. For each stall, intersect its contour with every detection
+box and call it taken when a box covers at least 35% of the stall
+(`occupancy.assign_overlap`).
+
+This replaces the bottom-centre point test originally specified here, which was wrong and
+measured at 23 points worse. The reasoning behind it, that a point test beats IoU for
+perspective views, holds only when stalls sit square to the camera. PKLot's stalls are
+**angled**, and YOLO returns axis-aligned boxes, so the bottom centre of a diagonally parked
+car lands outside its own stall, usually in the driving aisle. Certain stalls were therefore
+wrong in 30 frames out of 30: not occlusion, not a missed detection, just a point falling a few
+pixels outside a rotated quad every time.
+
+Measured on 55 frames of UFPR04 strided across days, weather and times (1537 decisions,
+714 occupied / 823 free):
+
+| Method | Accuracy | False positives | False negatives |
+|---|---|---|---|
+| `point` (bottom centre in polygon) | 74.9% | - | - |
+| `centroid` (stall centre inside a box) | 98.0% | 1 | 29 |
+| **`overlap` (polygon intersection, default)** | **97.9%** | **0** | 32 |
+
+`overlap` ships despite being 0.1 point behind, which is one decision in 1537 and inside the
+noise. It produced **zero false positives across 823 free stalls**. A false positive sends a
+driver to a stall that is already taken, which is the failure that makes the product worse than
+not existing, so it is worth trading a rounding error for. All three methods stay in
+`parktech/occupancy.py` behind `scripts/accuracy.py --method`, so the claim stays reproducible.
+
+### Accuracy by weather
+
+The demo script says "including rain". That is now measured rather than hoped for. UFPR04,
+107 frames, 2984 decisions:
+
+| Weather | Frames | Decisions | Accuracy | False positives |
+|---|---|---|---|---|
+| Sunny | 40 | 1117 | 97.7% | 0 |
+| Cloudy | 33 | 921 | 98.7% | 2 |
+| **Rainy** | 34 | 946 | **98.4%** | 1 |
+
+Rain scores slightly **better** than sun, most likely because overcast light removes the hard
+shadows that blur a car's boundary against the tarmac. Three false positives in 2984 decisions
+across every condition.
+
+Still unmeasured: UFPR05 and PUCPR, and night, which PKLot does not cover at all. Say so if
+asked rather than implying the number generalises.
 
 **Debounce:** occupied after 3 consecutive positive frames, available after 5 consecutive
 negative. Prevents the red/green strobing that makes a demo look broken.
 
-**The domain-gap risk:** PKLot cameras are distant, so cars may fall below roughly 30 pixels,
-which is where COCO YOLO degrades sharply. This is the same class of problem that was the real
-bottleneck on `football-kick-analyzer`. Mitigations in order: use `yolo11s` over `yolo11n`,
-raise `imgsz` to 1280, lower `conf` to about 0.2, and crop to the annotated zone rather than
-processing the full frame. **Do not fine-tune.** If detection still fails, switch cameras
-(UFPR04 vs UFPR05 vs PUCPR have different distances) before changing anything else.
+**The domain-gap risk: resolved, and it was half the story.** PKLot frames are 1280x720 and the
+cameras are distant, so at the default 640px input cars fall near the 30px floor where COCO YOLO
+degrades. The validated configuration is **`yolo11s.pt`, `imgsz=1280`, `conf=0.2`**, which took
+the point-test baseline from 50.7% to 74.9%.
+
+Worth recording that the detector was only half the problem. Settings alone never got close to
+shippable; fixing the occupancy geometry did the rest. Measure the geometry before blaming the
+model.
+
+Cost: roughly 1 to 2 seconds per frame on MPS. Irrelevant here because we replay stills under
+time compression, but it rules out real-time 30fps video on this hardware, so do not promise
+"live" on stage.
+
+**No fine-tuning was needed and none should be attempted.**
 
 **Homography:** `calibrate.py` shows frame 1, you click 4 ground-plane points, it maps them to a
 canvas rectangle and writes the 3x3 matrix. Every stall contour and every car bottom-center is
@@ -434,12 +499,14 @@ Algorithms decide what we see online. We wanted computer vision to improve somet
 happening around us."
 
 **The 90-second run:**
-1. "Every lot already has cameras. None of them know which stalls are free."
-2. Point left: boxes, track IDs, stall outlines live on the footage
-3. Point right: "every stall has a digital counterpart"
+1. Open on the DRIVER VIEW. "This is what a student opens. 100 stalls, live."
+2. "Every lot already has cameras. None of them know which stalls are free."
+3. Then reveal the OPERATOR VIEW: boxes, stall outlines, accuracy on the real footage.
+   Two screens if you have them, which is far stronger than one crowded page
 4. Stay quiet while a car leaves. Left shows exiting, right flips red to green, count ticks up
 5. Click the green stall: hold goes amber, route animates
-6. "94% per-stall accuracy, measured against ground truth across a full day including rain"
+6. "98% per-stall accuracy, measured against ground truth. 97.7% in sun, 98.4% in rain, with
+   three false positives in nearly three thousand decisions"
 7. Analytics: "and the lot now has a utilization history it never had"
 
 **Honesty slide, non-negotiable:** state plainly that the footage is the PKLot benchmark, not
@@ -450,10 +517,15 @@ admitting it.
 **Pre-built Q&A:**
 - *Two people click the same spot?* Soft holds, with the amber state on screen
 - *Why not per-stall sensors?* Hardware at every stall versus one camera covering many
-- *Night, rain, snow?* PKLot includes rainy and cloudy days and the accuracy number covers them.
-  Night is unvalidated and would need IR hardware. Say so.
+- *Night, rain, snow?* Rain is measured at 98.4% and cloud at 98.7%, both from the dataset's own
+  labelled rainy and cloudy days. Night is **not** covered by PKLot at all and is unvalidated;
+  it would need IR-capable hardware. Say that plainly rather than implying the number covers it.
 - *Occlusion?* Overlapping camera zones in production. Show the architecture graphic
-- *Privacy?* Only occupancy state leaves the device. No faces, no plates, no video retained
+- *Privacy?* Only occupancy state leaves the device. No faces, no plates, no video retained.
+  This is why the driver view carries no camera feed at all: the footage exists for the
+  operator, never for the public. If the product streamed the lot to every user we would be
+  claiming one thing and shipping another, and that is the kind of gap a judge finds in one
+  question.
 - *How is this different from SpotHero or ParkMobile?* They handle reservations and payment.
   None of them know whether a physical stall is empty right now. That gap is the claim
 - *Did you hand-annotate the stalls?* No. Four clicks calibrate a camera, and the rectification

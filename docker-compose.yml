@@ -1,0 +1,31 @@
+# Local TimescaleDB for development and for the demo.
+#
+# Hackathon wifi fails. This is the offline fallback, and it is what the demo
+# should run against on stage. To use Tiger Cloud instead, set DATABASE_URL and
+# nothing else changes:
+#
+#   export DATABASE_URL="postgresql://...tsdb.cloud.timescale.com:.../tsdb?sslmode=require"
+#
+#   docker compose up -d
+#   python -c "from parktech import db; db.init()"
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg17
+    container_name: parktech-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: parktech
+      POSTGRES_PASSWORD: parktech
+      POSTGRES_DB: parktech
+    volumes:
+      - parktech-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parktech -d parktech"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  parktech-pgdata:

@@ -4,8 +4,6 @@ A computer-vision layer for parking infrastructure that already exists. It turns
 fixed camera into a live map of which stalls are open, which one you should take, and how the
 lot gets used over time.
 
-Built for HackWesTX VII, Texas Tech University
-
 ## The problem
 
 Parking lots already have capacity and already have cameras. Nobody knows which specific stalls
@@ -47,7 +45,7 @@ The demo runs on the **PKLot** benchmark (fixed cameras, 5-minute intervals, wit
 polygon coordinates and occupied/vacant ground truth). That choice is deliberate: it means the
 accuracy number reported in the UI is measured against ground truth rather than asserted.
 
-PKLot is a Brazilian parking lot, not the Innovation Hub. The demo says so out loud.
+[PKLot](https://www.researchgate.net/publication/273479425_PKLot_-_A_Robust_Dataset_for_Parking_Lot_Classification) Dataset is a Brazilian parking lot, we have used to test out our system.
 
 ## Repo layout
 
@@ -78,19 +76,6 @@ cd web && npm install && npm run dev
 The frontend runs standalone against mock data with `VITE_USE_MOCK=1`, so it never needs the
 Python pipeline running.
 
-## Working on this
+## Team
 
-Two people, two lanes, two machines.
-
-| Path | Owner |
-|---|---|
-| `run.py`, `calibrate.py`, `parktech/`, `config/` | Lavneet |
-| `web/` | Sharva |
-| `contracts/` | shared, additive changes only |
-
-**Never push to `main`.** Every change is a PR reviewed by the other teammate. Branch as
-`vision/<thing>` or `web/<thing>`, one file per commit, then `gh pr create`.
-
-If you are blocked on an unmerged PR, stack the next branch on top of it rather than waiting.
-
-Full detail, including the build timeline and the state contract, is in [PRD.md](PRD.md).
+[@lavneethora](https://github.com/lavneethora) and [@sharvapatill](https://github.com/sharvapatill)
