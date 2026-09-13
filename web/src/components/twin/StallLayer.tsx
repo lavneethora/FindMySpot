@@ -7,7 +7,7 @@ interface StallLayerProps {
   layout: Layout;
   state: ParkState | null;
   bestSpot: string | null;
-  /** The stall this driver is holding, if any. */
+  /** The stall the driver is being routed to, if any. Not a reservation. */
   heldSpot: string | null;
   onSelect?: (spotId: string) => void;
   /**
@@ -42,7 +42,7 @@ function StallLayerInner({ layout, state, bestSpot, heldSpot, onSelect }: StallL
                map half the judging rubric marks down. Available stalls are real buttons. */
             role={claimable ? "button" : undefined}
             tabIndex={claimable ? 0 : undefined}
-            aria-label={claimable ? `Hold stall ${id}, ${spot.distance_to_entrance_m ?? "unknown"} metres from the entrance` : undefined}
+            aria-label={claimable ? `Route to stall ${id}, ${spot.distance_to_entrance_m ?? "unknown"} metres from the entrance` : undefined}
             onClick={select}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -63,7 +63,7 @@ function StallLayerInner({ layout, state, bestSpot, heldSpot, onSelect }: StallL
                  and the global reduced motion rule turns this off. */
               style={{ transition: "fill 400ms ease, stroke 400ms ease, stroke-width 200ms ease" }}
             >
-              <title>{`${id}: ${style.label}${claimable ? ", click to hold" : ""}`}</title>
+              <title>{`${id}: ${style.label}${claimable ? ", click to route here" : ""}`}</title>
             </polygon>
 
             {style.pattern && (
