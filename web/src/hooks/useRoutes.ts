@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { api } from "../lib/apiBase";
 import type { Point } from "../lib/contract";
 
 export interface DriverRoute {
@@ -41,7 +42,7 @@ export function useRoutes(spotId: string | null, mock: boolean): Routes {
 
     let current = true;
 
-    fetch(`/api/routes/${encodeURIComponent(spotId)}`)
+    fetch(api(`/api/routes/${encodeURIComponent(spotId)}`))
       .then((r) => (r.ok ? r.json() : null))
       .then((body) => {
         if (!current || !body) return;
