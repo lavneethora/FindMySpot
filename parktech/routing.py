@@ -182,24 +182,45 @@ def simulated_drivers(layout):
             "id": index,
             "x": round(ax + (bx - ax) * fraction, 4),
             "y": round(ay + (by - ay) * fraction, 4),
-            # The lane node a route from this car starts at.
+            # The lane this car is sitting on. A route joins it at whichever
+            # end is closer to where the car is going.
             "node": start,
+            "lane": [start, end],
         })
     return drivers
 
 
 def route_from_driver(layout, driver, spot_id):
-    """Route from a car's own position, not just from its nearest lane node.
+    """Route from a car's own position on its lane.
 
-    The car sits partway along a lane, so the path has to run along that lane
-    to the junction before joining the rest of the route. Without this the
-    route jumped from the car to the junction in a straight line, which crosses
-    whatever happens to be between them.
+    The car sits partway along a lane with a junction at either end, so it can
+    set off in either direction. Routing from one fixed end made a car drive
+    back to that junction first and then past itself, which is a detour no
+    driver would make.
+
+    Both ends are tried and the shorter total wins, counting the drive from the
+    car to that end.
     """
-    path = route_to_stall(layout, spot_id, driver.get("node", "entrance"))
-    if not path:
-        return []
     here = [driver["x"], driver["y"]]
-    if _distance(here, path[0]) > 1e-6:
-        return [here, *path]
-    return path
+    lane = driver.get("lane") or [driver.get("node", "entrance")]
+    nodes = layout.get("aisles", {}).get("nodes", {})
+
+    best, best_cost = [], float("inf")
+    for end in lane:
+        if end not in nodes:
+            continue
+        path = route_to_stall(layout, spot_id, end)
+        if not path:
+            continue
+        # Drive to that end of the lane, then follow the route from it.
+        cost = _distance(here, nodes[end]) + sum(
+            _distance(path[i], path[i + 1]) for i in range(len(path) - 1)
+        )
+        if cost < best_cost:
+            best, best_cost = path, cost
+
+    if not best:
+        return []
+    if _distance(here, best[0]) > 1e-6:
+        return [here, *best]
+    return best
