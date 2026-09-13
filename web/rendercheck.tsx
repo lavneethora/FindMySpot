@@ -70,7 +70,7 @@ function render(name: string, node: React.ReactElement): string {
 
 // The state every viewer sees for the first few hundred milliseconds.
 const empty = render("whole app with no data yet", <App />);
-check("empty app still shows the product name", empty.includes("ParkTech"));
+check("empty app still shows the product name", empty.includes("FindMySpot"));
 check("empty app shows placeholder dashes instead of zeros", empty.includes("--"));
 check("empty app does not claim an accuracy", !empty.includes("%</p>"), "an accuracy slipped into the empty state");
 
