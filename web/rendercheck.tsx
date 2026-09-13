@@ -87,7 +87,7 @@ check("summary strip shows the best spot", recommended == null || summary.includ
 check("summary strip shows accuracy as a percentage", accuracyText == null || summary.includes(accuracyText), String(accuracyText));
 
 const twin = render("twin panel with data", <TwinPanel layout={layout} state={state} />);
-check("twin panel counts the stalls", twin.includes(`${stallCount} stalls`));
+check("twin panel is titled Digital Layout", twin.includes("Digital Layout"));
 render("twin panel with no layout", <TwinPanel layout={null} state={null} />);
 
 const simulated = render("vision panel, mock mode", <VisionPanel layout={layout} state={state} connection="mock" />);
@@ -463,10 +463,13 @@ const driver = render(
   "driver view",
   <DriverView layout={layout} state={state} holding={idleHold} onSelect={() => {}} />,
 );
-check("the driver sees the map", driver.includes("Digital twin") || driver.includes("<polygon"));
+check("the driver sees the map", driver.includes("Digital Layout") || driver.includes("<polygon"));
 check("the driver can hold a stall", driver.includes("Hold"));
 // The reason the split exists. If footage ever reaches this view, the privacy answer is dead.
-check("the driver is shown no camera panel", !driver.includes("Camera") && !driver.includes("/video"));
+check(
+  "the driver is shown no camera panel",
+  !driver.includes("Camera") && !driver.includes("Parking Lot Camera") && !driver.includes("/video"),
+);
 check("the driver is shown no simulated footage either", !driver.includes("Simulated view"));
 check("the driver is not shown detector accuracy", !driver.includes("Per stall accuracy"));
 check("the driver is not shown operator analytics", !driver.includes("How this lot gets used"));
@@ -481,13 +484,13 @@ const ops = render(
     events={events}
   />,
 );
-check("the operator sees the camera", ops.includes("Camera"));
+check("the operator sees the camera", ops.includes("Parking Lot Camera"));
 check("the operator sees accuracy", ops.includes("Per stall accuracy"));
 check("the operator sees the history", ops.includes("How this lot gets used"));
 check("the operator sees the activity feed", ops.includes("Activity"));
 
 // The map belongs to the driver. Duplicating it here would just be the old single page again.
-check("the operator view does not repeat the map", !ops.includes("Digital twin"));
+check("the operator view does not repeat the map", !ops.includes("Digital Layout"));
 
 const header = render(
   "header on the driver view",
@@ -518,7 +521,11 @@ const glassHeader = render(
 const surfaces = (glassHeader.match(/backdrop-filter:url\(&quot;#liquid-glass&quot;\)|backdropFilter/g) ?? []).length;
 check("every header pill gets a refraction layer", surfaces >= 4, `${surfaces} layers`);
 check("the pills are round", (glassHeader.match(/rounded-full/g) ?? []).length >= 8);
-check("the glass carries a rim", glassHeader.includes("inset_1.5px_1.5px"));
+check("the glass carries a rim", glassHeader.includes("inset_0_1px_0.5px_rgba(255,255,255,0.98)"));
+// The rim and the sheen are painted rather than sampled, which is what makes the pill read
+// as glass even where the backdrop is flat cream and the refraction has nothing to bend.
+check("the glass carries a painted sheen", glassHeader.includes("linear-gradient(135deg"));
+check("the pills are 40px, the control height DESIGN.md specifies", glassHeader.includes("h-10"));
 
 // The reference component would have made these buttons. They must stay a link and spans, or
 // middle click and open in new window stop working and the two screen demo breaks.
