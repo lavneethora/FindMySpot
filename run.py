@@ -1,4 +1,4 @@
-"""ParkTech. One command starts everything.
+"""FindMySpot. One command starts everything.
 
     python run.py                          # replay PUCPR, serve on :8100
     python run.py --camera UFPR04 --fps 4
@@ -78,7 +78,7 @@ def main():
     # came back as 502 and the twin silently froze on its first payload.
     ap.add_argument("--host", default="0.0.0.0")
     # 8000 is a crowded default and already taken on this machine by another
-    # project. 8100 keeps ParkTech out of the way.
+    # project. 8100 keeps FindMySpot out of the way.
     ap.add_argument("--port", type=int, default=8100)
     ap.add_argument("--headless", action="store_true",
                     help="no server, print state to stdout")
