@@ -78,6 +78,55 @@ class Pipeline:
             print(f"cache: {len(self._cache)} frames precomputed, "
                   "replay will not wait on inference")
 
+    def thin_idle(self, keep_every=2, min_run=4):
+        """Drop frames from long stretches where nothing in the lot changes.
+
+        The replay walks real capture order, which includes the hours when the
+        lot is simply empty. In one 400 frame window, 175 consecutive frames
+        were an empty lot: a minute and a half of nothing, every loop.
+
+        Cutting those stretches keeps the real sequence and the real order, and
+        only removes frames that show exactly what the frame before them
+        showed. Every frame where a stall changes is kept, so no arrival or
+        departure is ever skipped. Runs shorter than min_run are left alone,
+        since a couple of quiet frames is just the lot being quiet.
+
+        Ground truth is used to decide, not the detector: whether a frame is
+        worth showing is a fact about the lot, not about how we read it.
+        """
+        if len(self.frames) < 2:
+            return 0
+
+        states = []
+        for _jpg, xml in self.frames:
+            spaces = pklot.parse_spaces(xml)
+            states.append(frozenset(s.id for s in spaces if s.occupied))
+
+        # Group consecutive frames that show the same set of occupied stalls.
+        runs, start = [], 0
+        for i in range(1, len(states) + 1):
+            if i == len(states) or states[i] != states[start]:
+                runs.append((start, i))
+                start = i
+
+        kept = []
+        for begin, end in runs:
+            length = end - begin
+            if length < min_run:
+                kept.extend(range(begin, end))
+            else:
+                # Always keep the first frame of a run: that is the one where
+                # the change actually happened.
+                kept.extend(
+                    i for i in range(begin, end) if (i - begin) % keep_every == 0
+                )
+
+        dropped = len(self.frames) - len(kept)
+        self.frames = [self.frames[i] for i in kept]
+        if dropped:
+            print(f"thinned {dropped} idle frames, {len(self.frames)} remain")
+        return dropped
+
     def seek(self, time_of_day):
         """Rotate the frame list so replay begins near a given clock time.
 
