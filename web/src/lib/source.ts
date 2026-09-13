@@ -9,16 +9,70 @@
  * showing an empty lot.
  */
 
-import type { Hold, Layout, ParkState } from "./contract";
+import type { Analytics, Hold, Layout, ParkState, Point } from "./contract";
 import { MockPipeline } from "./mock";
 
 export type Connection = "connecting" | "live" | "mock" | "fallback";
 
 export interface Source {
   getLayout(): Promise<Layout>;
+  getAnalytics(): Promise<Analytics>;
   hold(spotId: string): Promise<Hold>;
   start(onState: (state: ParkState) => void, onConnection: (c: Connection) => void): void;
   stop(): void;
+}
+
+const FALLBACK_SESSION = `s-${Math.random().toString(36).slice(2, 10)}`;
+
+/**
+ * One id per browser tab.
+ *
+ * sessionStorage rather than localStorage, deliberately: two tabs have to count as two
+ * drivers, which is precisely the "what if two people click the same stall" question the soft
+ * hold exists to answer. Share the id across tabs and the second tab is allowed to take a
+ * stall the first one is holding, and the demo proves nothing.
+ */
+export function sessionId(): string {
+  try {
+    const existing = sessionStorage.getItem("parktech.session");
+    if (existing) return existing;
+    sessionStorage.setItem("parktech.session", FALLBACK_SESSION);
+    return FALLBACK_SESSION;
+  } catch {
+    // Private windows and blocked site data both throw. An in memory id still makes this tab
+    // distinct for as long as it is open, which is all the demo needs.
+    return FALLBACK_SESSION;
+  }
+}
+
+/**
+ * Turn whatever POST /api/hold returned into a Hold, or throw.
+ *
+ * The pipeline answers a refused hold with HTTP 200 and a body of {"error": "already held"},
+ * not a 4xx. Checking response.ok alone therefore reports success, hands back an object with
+ * no held_until, and leaves a hold that never counts down and never expires. Parse the body,
+ * do not trust the status line.
+ */
+export function asHold(payload: unknown, spotId: string): Hold {
+  if (!payload || typeof payload !== "object") {
+    throw new Error(`The pipeline sent no answer for ${spotId}`);
+  }
+  const body = payload as Record<string, unknown>;
+
+  if (typeof body.error === "string") {
+    throw new Error(
+      body.error === "already held" ? `${spotId} was just taken by someone else` : body.error,
+    );
+  }
+  if (typeof body.held_until !== "string") {
+    throw new Error(`The pipeline did not say how long ${spotId} is held for`);
+  }
+
+  return {
+    spot_id: String(body.spot_id ?? spotId),
+    held_until: body.held_until,
+    route: Array.isArray(body.route) ? (body.route as Point[]) : [],
+  };
 }
 
 export function useMock(): boolean {
@@ -31,6 +85,10 @@ class MockSource implements Source {
 
   getLayout(): Promise<Layout> {
     return this.pipeline.getLayout();
+  }
+
+  getAnalytics(): Promise<Analytics> {
+    return this.pipeline.getAnalytics();
   }
 
   hold(spotId: string): Promise<Hold> {
@@ -67,15 +125,22 @@ class LiveSource implements Source {
     return (await response.json()) as Layout;
   }
 
+  async getAnalytics(): Promise<Analytics> {
+    if (this.fallback) return this.fallback.getAnalytics();
+    const response = await fetch("/api/analytics");
+    if (!response.ok) throw new Error(`GET /api/analytics returned ${response.status}`);
+    return (await response.json()) as Analytics;
+  }
+
   async hold(spotId: string): Promise<Hold> {
     if (this.fallback) return this.fallback.hold(spotId);
     const response = await fetch("/api/hold", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ spot_id: spotId }),
+      body: JSON.stringify({ spot_id: spotId, session_id: sessionId() }),
     });
     if (!response.ok) throw new Error(`POST /api/hold returned ${response.status}`);
-    return (await response.json()) as Hold;
+    return asHold(await response.json(), spotId);
   }
 
   start(onState: (state: ParkState) => void, onConnection: (c: Connection) => void): void {

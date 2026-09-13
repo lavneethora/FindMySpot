@@ -9,7 +9,7 @@
 
 import rawLayout from "@contracts/mock_layout.json";
 import rawSequence from "@contracts/mock_sequence.json";
-import type { Car, Hold, Layout, ParkState, Point, Transition } from "./contract";
+import type { Analytics, Car, Hold, Layout, ParkState, Point, Transition } from "./contract";
 
 const layout = rawLayout as unknown as Layout;
 const sequence = rawSequence as unknown as ParkState[];
@@ -70,6 +70,56 @@ function routeTo(spotId: string): Point[] {
   return points.filter((p, i) => i === 0 || Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) > 1e-4);
 }
 
+/** Deterministic, so the chart does not reshuffle itself every time it is fetched. */
+function noise(seed: number): number {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+const BUCKET_MS = 5 * 60_000;
+const BUCKET_COUNT = 144;
+
+/**
+ * A plausible day of history, for when there is no database to ask.
+ *
+ * Built the same way round as the real thing: shape a curve, then emit the per bucket
+ * transition counts that produce it. The final bucket is pinned to the lot's actual current
+ * occupancy, so reconstructing the curve from these deltas returns exactly the curve that was
+ * shaped, which is also a decent end to end check of the reconstruction itself.
+ */
+function synthesiseAnalytics(state: ParkState | null, cameraId: string): Analytics {
+  const total = state?.summary.total ?? Object.keys(layout.spots).length;
+  const now = state ? new Date(state.timestamp).getTime() : Date.parse("2013-01-10T12:25:00Z");
+  const endOccupied = state?.summary.occupied ?? Math.round(total * 0.75);
+
+  const levels: number[] = [];
+  for (let i = 0; i < BUCKET_COUNT; i += 1) {
+    const at = new Date(now - (BUCKET_COUNT - 1 - i) * BUCKET_MS);
+    const hour = at.getUTCHours() + at.getUTCMinutes() / 60;
+    const arrive = 1 / (1 + Math.exp(-(hour - 9.2) * 1.4));
+    const leave = 1 / (1 + Math.exp((hour - 16.4) * 1.1));
+    const shaped = 2 + (total - 3) * arrive * leave + (noise(i) - 0.5) * 1.6;
+    levels.push(Math.max(0, Math.min(total, Math.round(shaped))));
+  }
+  levels[BUCKET_COUNT - 1] = endOccupied;
+
+  const buckets = levels.map((level, i) => {
+    const delta = i === 0 ? 0 : level - levels[i - 1];
+    // Churn on top of the net change, because stalls turn over even when the count holds
+    // steady. It cancels out of the net, so the reconstructed curve is unaffected.
+    const churn = Math.floor(noise(i + 500) * 2.4);
+    return {
+      t: new Date(now - (BUCKET_COUNT - 1 - i) * BUCKET_MS).toISOString(),
+      became_occupied: Math.max(0, delta) + churn,
+      became_available: Math.max(0, -delta) + churn,
+    };
+  });
+
+  // The live feed already gives the frontend its own event stream, so this stays empty rather
+  // than inventing a second one that could disagree with it.
+  return { camera_id: cameraId, buckets, recent: [] };
+}
+
 export class MockPipeline {
   private holds = new Map<string, number>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -82,6 +132,10 @@ export class MockPipeline {
 
   getLayout(): Promise<Layout> {
     return Promise.resolve(layout);
+  }
+
+  getAnalytics(): Promise<Analytics> {
+    return Promise.resolve(synthesiseAnalytics(this.current, sequence[0]?.camera_id ?? "mock"));
   }
 
   hold(spotId: string): Promise<Hold> {

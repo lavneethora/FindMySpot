@@ -82,6 +82,33 @@ export interface Hold {
 }
 
 /**
+ * GET /api/analytics, as the pipeline actually returns it.
+ *
+ * Worth reading carefully: the buckets are transition COUNTS, not occupancy levels.
+ * parking_events stores state changes only, so the continuous aggregate over it can report
+ * how many stalls filled and emptied in each five minute window, but not how full the lot
+ * was. The curve has to be reconstructed. See lib/analytics.ts.
+ */
+export interface AnalyticsBucket {
+  /** Start of the bucket, ISO. */
+  t: string;
+  became_occupied: number;
+  became_available: number;
+}
+
+export interface AnalyticsEvent {
+  t: string;
+  spot_id: string;
+  status: string;
+}
+
+export interface Analytics {
+  camera_id: string;
+  buckets: AnalyticsBucket[];
+  recent: AnalyticsEvent[];
+}
+
+/**
  * Layout and state are produced independently, so a spot id present in one is not
  * guaranteed to be present in the other. Read through these rather than indexing, or a
  * mismatch between the lanes becomes a blank screen instead of a missing stall.

@@ -28,6 +28,8 @@ import { statusSignature } from "./src/components/twin/StallLayer";
 import { holdVerdict } from "./src/hooks/useHold";
 import { HoldCard } from "./src/components/HoldCard";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
+import { reconstruct } from "./src/lib/analytics";
+import { asHold, sessionId } from "./src/lib/source";
 
 const layout = rawLayout as unknown as Layout;
 const state = rawState as unknown as ParkState;
@@ -100,7 +102,10 @@ const dropped = render("vision panel, pipeline lost", <VisionPanel layout={layou
 check("a dropped pipeline falls back to the labelled simulation", dropped.includes("Simulated view"));
 
 render("vision panel with no layout", <VisionPanel layout={null} state={null} connection="mock" />);
-render("analytics strip", <AnalyticsStrip />);
+render(
+  "analytics strip with nothing loaded yet",
+  <AnalyticsStrip analytics={{ series: null, loading: true, error: null }} connection="connecting" />,
+);
 
 render("activity feed, empty", <ActivityFeed events={[]} />);
 const events: LoggedEvent[] = [
@@ -335,6 +340,106 @@ const passthrough = render(
 );
 check("a healthy boundary renders its child untouched", passthrough.includes("panel content"));
 check("a healthy boundary adds no chrome of its own", !passthrough.includes("stopped"));
+
+// ---- reading the hold response -------------------------------------------------------
+// The pipeline refuses a hold with HTTP 200 and an error body, so the status line cannot be
+// trusted. Getting this wrong produces a hold that never counts down and never expires.
+let refused = "";
+try {
+  asHold({ error: "already held", spot_id: "7" }, "7");
+} catch (cause) {
+  refused = cause instanceof Error ? cause.message : "";
+}
+check("a refused hold throws rather than returning a broken hold", refused.length > 0, refused);
+check("the refusal says who took it", refused.toLowerCase().includes("someone else"), refused);
+
+let missing = false;
+try {
+  asHold({ spot_id: "7" }, "7");
+} catch {
+  missing = true;
+}
+check("a hold with no expiry is rejected", missing);
+
+const good = asHold({ spot_id: "7", held_until: "2013-01-10T12:06:30Z", route: [[0, 0], [1, 1]] }, "7");
+check("a real hold parses", good.spot_id === "7" && good.held_until.startsWith("2013"));
+check("a hold with no route still parses", asHold({ spot_id: "7", held_until: "x" }, "7").route.length === 0);
+check("every tab gets a session id", typeof sessionId() === "string" && sessionId().length > 0);
+check("the session id is stable within a tab", sessionId() === sessionId());
+
+// ---- reconstructing the occupancy curve ----------------------------------------------
+// The exact property: deltas derived from a known curve must reconstruct back to that curve.
+const trueLevels = [3, 5, 4, 9, 12, 18, 21, 20, 24, 17, 11, 6];
+const capacity = 28;
+const derived = trueLevels.map((level, i) => {
+  const delta = i === 0 ? 0 : level - trueLevels[i - 1];
+  const churn = i % 3;
+  return {
+    t: new Date(Date.UTC(2013, 0, 10, 6, i * 5)).toISOString(),
+    became_occupied: Math.max(0, delta) + churn,
+    became_available: Math.max(0, -delta) + churn,
+  };
+});
+
+const rebuilt = reconstruct(derived, trueLevels[trueLevels.length - 1], capacity);
+check(
+  "the curve reconstructs exactly from the deltas",
+  rebuilt.points.length === trueLevels.length &&
+    rebuilt.points.every((p, i) => p.occupied === trueLevels[i]),
+  JSON.stringify(rebuilt.points.map((p) => p.occupied)),
+);
+check("churn cancels out of the net change", rebuilt.points[5].occupied === trueLevels[5]);
+check("the peak is the fullest bucket", rebuilt.peak?.occupied === Math.max(...trueLevels));
+check("the bucket width is inferred", rebuilt.bucketMinutes === 5, String(rebuilt.bucketMinutes));
+check(
+  "turnover counts every change",
+  rebuilt.events === derived.reduce((sum, b) => sum + b.became_occupied + b.became_available, 0),
+);
+check("a complete window is not flagged incomplete", rebuilt.incomplete === false);
+
+// Anchored on the wrong present, the curve must run out of range and say so rather than lie.
+const wrongAnchor = reconstruct(derived, 0, capacity);
+check("an impossible reconstruction is flagged", wrongAnchor.incomplete === true);
+check("a flagged reconstruction still stays within capacity", wrongAnchor.points.every((p) => p.occupied >= 0 && p.occupied <= capacity));
+
+check("no buckets gives an empty series", reconstruct([], 5, capacity).points.length === 0);
+check("no capacity gives an empty series", reconstruct(derived, 5, 0).points.length === 0);
+check("unsorted buckets are ordered before use", (() => {
+  const shuffled = [derived[3], derived[0], derived[2], derived[1]];
+  const out = reconstruct(shuffled, 9, capacity);
+  return out.points.every((p, i) => i === 0 || p.time >= out.points[i - 1].time);
+})());
+
+// ---- the analytics panel --------------------------------------------------------------
+const drawn = render(
+  "analytics with history",
+  <AnalyticsStrip analytics={{ series: rebuilt, loading: false, error: null }} connection="live" />,
+);
+check("the chart is drawn", drawn.includes("<path") && drawn.includes("<svg"));
+check("the peak is called out", drawn.includes("peak"));
+check("turnover is reported", drawn.includes("per stall per hour"));
+check("the panel says the curve is reconstructed", drawn.toLowerCase().includes("reconstructed"));
+check("the chart describes itself for a screen reader", drawn.includes('role="img"') && drawn.includes("Occupancy from"));
+check("live history is not labelled a sample", !drawn.includes("Sample history"));
+
+const sampled = render(
+  "analytics in mock mode",
+  <AnalyticsStrip analytics={{ series: rebuilt, loading: false, error: null }} connection="mock" />,
+);
+check("generated history is labelled a sample", sampled.includes("Sample history"));
+
+render("analytics while loading", <AnalyticsStrip analytics={{ series: null, loading: true, error: null }} connection="live" />);
+const failed = render(
+  "analytics after a failure",
+  <AnalyticsStrip analytics={{ series: null, loading: false, error: "database unreachable" }} connection="live" />,
+);
+check("an analytics failure is shown, not swallowed", failed.includes("database unreachable"));
+
+const gappy = render(
+  "analytics with an incomplete window",
+  <AnalyticsStrip analytics={{ series: wrongAnchor, loading: false, error: null }} connection="live" />,
+);
+check("an incomplete window is admitted on screen", gappy.includes("approximate"));
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
