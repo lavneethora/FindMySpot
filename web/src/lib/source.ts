@@ -9,6 +9,7 @@
  * showing an empty lot.
  */
 
+import { api, wsUrl } from "./apiBase";
 import type { Analytics, Hold, Layout, ParkState, Point } from "./contract";
 import { MockPipeline } from "./mock";
 
@@ -120,21 +121,21 @@ class LiveSource implements Source {
 
   async getLayout(): Promise<Layout> {
     if (this.fallback) return this.fallback.getLayout();
-    const response = await fetch("/api/layout");
+    const response = await fetch(api("/api/layout"));
     if (!response.ok) throw new Error(`GET /api/layout returned ${response.status}`);
     return (await response.json()) as Layout;
   }
 
   async getAnalytics(): Promise<Analytics> {
     if (this.fallback) return this.fallback.getAnalytics();
-    const response = await fetch("/api/analytics");
+    const response = await fetch(api("/api/analytics"));
     if (!response.ok) throw new Error(`GET /api/analytics returned ${response.status}`);
     return (await response.json()) as Analytics;
   }
 
   async hold(spotId: string): Promise<Hold> {
     if (this.fallback) return this.fallback.hold(spotId);
-    const response = await fetch("/api/hold", {
+    const response = await fetch(api("/api/hold"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ spot_id: spotId, session_id: sessionId() }),
@@ -174,8 +175,7 @@ class LiveSource implements Source {
 
   private connect(): void {
     if (this.stopped) return;
-    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(`${protocol}//${location.host}/ws`);
+    const socket = new WebSocket(wsUrl());
     this.socket = socket;
 
     socket.onopen = () => {
