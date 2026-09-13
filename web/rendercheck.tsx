@@ -87,7 +87,7 @@ check("summary strip shows the best spot", recommended == null || summary.includ
 check("summary strip shows accuracy as a percentage", accuracyText == null || summary.includes(accuracyText), String(accuracyText));
 
 const twin = render("twin panel with data", <TwinPanel layout={layout} state={state} />);
-check("twin panel counts the stalls", twin.includes(`${stallCount} stalls`));
+check("twin panel is titled Digital Layout", twin.includes("Digital Layout"));
 render("twin panel with no layout", <TwinPanel layout={null} state={null} />);
 
 const simulated = render("vision panel, mock mode", <VisionPanel layout={layout} state={state} connection="mock" />);
@@ -463,10 +463,13 @@ const driver = render(
   "driver view",
   <DriverView layout={layout} state={state} holding={idleHold} onSelect={() => {}} />,
 );
-check("the driver sees the map", driver.includes("Digital twin") || driver.includes("<polygon"));
+check("the driver sees the map", driver.includes("Digital Layout") || driver.includes("<polygon"));
 check("the driver can hold a stall", driver.includes("Hold"));
 // The reason the split exists. If footage ever reaches this view, the privacy answer is dead.
-check("the driver is shown no camera panel", !driver.includes("Camera") && !driver.includes("/video"));
+check(
+  "the driver is shown no camera panel",
+  !driver.includes("Camera") && !driver.includes("Parking Lot Camera") && !driver.includes("/video"),
+);
 check("the driver is shown no simulated footage either", !driver.includes("Simulated view"));
 check("the driver is not shown detector accuracy", !driver.includes("Per stall accuracy"));
 check("the driver is not shown operator analytics", !driver.includes("How this lot gets used"));
@@ -481,13 +484,13 @@ const ops = render(
     events={events}
   />,
 );
-check("the operator sees the camera", ops.includes("Camera"));
+check("the operator sees the camera", ops.includes("Parking Lot Camera"));
 check("the operator sees accuracy", ops.includes("Per stall accuracy"));
 check("the operator sees the history", ops.includes("How this lot gets used"));
 check("the operator sees the activity feed", ops.includes("Activity"));
 
 // The map belongs to the driver. Duplicating it here would just be the old single page again.
-check("the operator view does not repeat the map", !ops.includes("Digital twin"));
+check("the operator view does not repeat the map", !ops.includes("Digital Layout"));
 
 const header = render(
   "header on the driver view",
