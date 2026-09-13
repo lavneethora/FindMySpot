@@ -7,6 +7,10 @@ export function Mesh() {
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-paper">
       <div className="absolute -top-40 -left-32 h-[40rem] w-[40rem] rounded-full bg-bloom-amber opacity-40 blur-[120px]" />
       <div className="absolute top-1/4 -right-40 h-[36rem] w-[36rem] rounded-full bg-bloom-sage opacity-35 blur-[130px]" />
+      {/* Sits behind the header pills, top right, which was bare cream before. Glass can only
+          show you what is behind it, so with nothing there the refraction had nothing to bend
+          and the pills read as flat. Low opacity: this is there to be distorted, not seen. */}
+      <div className="absolute -top-56 right-[-6rem] h-[34rem] w-[34rem] rounded-full bg-bloom-clay opacity-30 blur-[110px]" />
       <div className="absolute -bottom-48 left-1/4 h-[32rem] w-[32rem] rounded-full bg-bloom-clay opacity-30 blur-[140px]" />
       {/* A whisper of grain. Large flat gradients band badly on a projector. */}
       <div
