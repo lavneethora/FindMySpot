@@ -84,9 +84,9 @@ export function AnalyticsStrip({ analytics, connection }: AnalyticsStripProps) {
           </dl>
 
           <p className="mt-4 text-small text-ink/40">
-            The database records transitions, not levels, so the curve is reconstructed by
-            counting backwards from the lot's occupancy right now. The bars under it are the
-            stored counts themselves, unmodified.
+            The curve is the occupancy the pipeline recorded, one reading per frame, stored as
+            time series. The bars under it are the stored transition counts, unmodified. Both
+            come straight from the database; neither is inferred from the other.
             {series.incomplete && (
               <span className="text-held">
                 {" "}
