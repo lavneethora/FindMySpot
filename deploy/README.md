@@ -62,6 +62,11 @@ when the machine is unattended overnight.
 If you must build on the Mac, pass `--platform linux/amd64` and expect it to be
 slow.
 
+The image comes out at **839 MB**, most of which is the Python base and
+opencv. That is another reason to build on the VM rather than pushing an image
+around: the bundle you rsync is 155 MB, and the rest is assembled on the box
+from pip.
+
 `DATABASE_URL` is required and has no default in the image. There is no
 database in the container on purpose: one that loses its data on every redeploy
 is worse than none.
