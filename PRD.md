@@ -1,4 +1,4 @@
-# ParkTech: PRD and 24-Hour Build Plan
+# FindMySpot: PRD and 24-Hour Build Plan
 
 ## Context
 
@@ -8,7 +8,7 @@ of Tiger Data and Best UI/UX as secondary shots.
 
 **The problem being solved:** parking lots already have capacity and already have cameras, but
 nobody knows which specific stalls are free right now. Drivers circle, congest the lot, and
-arrive late. ParkTech is an *infrastructure intelligence layer*: it ingests an existing fixed
+arrive late. FindMySpot is an *infrastructure intelligence layer*: it ingests an existing fixed
 camera feed and turns it into a live, clickable top-down map of stall availability.
 
 **Why this shape:** the team cannot shoot original footage, so the demo runs on the PKLot
@@ -29,7 +29,7 @@ tutorial has: free annotations, and a **measured accuracy number** instead of an
 
 ## Product Definition
 
-**One-liner:** ParkTech is a computer-vision layer for parking infrastructure that already
+**One-liner:** FindMySpot is a computer-vision layer for parking infrastructure that already
 exists. It turns an ordinary fixed camera into a live map of which stalls are open, which one
 you should take, and how the lot gets used over time.
 
@@ -300,7 +300,7 @@ branches.** Git is just the transport.
 
 Nobody branches until `main` has the interface on it.
 
-The repo is `lavneethora/TechPark` (private). Sharva (`sharvapatill`) is already a collaborator.
+The repo is `lavneethora/FindMySpot` (private). Sharva (`sharvapatill`) is already a collaborator.
 Everything below lands as PRs, same as all other work.
 
 1. This PR: replace the old PRDs with this one, write the README
@@ -339,7 +339,7 @@ safe, far more than any PR process.
 ### Root `CLAUDE.md` (both sessions read this automatically)
 
 ```markdown
-# ParkTech
+# FindMySpot
 
 HackWesTX VII. Two-person team, two parallel Claude sessions.
 
@@ -472,7 +472,7 @@ Per-machine prerequisites before the clock starts:
 Paste these as the first message so each agent knows its boundary before it writes anything.
 
 **Session A (Lavneet's machine, vision):**
-> You are Session A on ParkTech. You own Python only: `run.py`, `calibrate.py`, `parktech/`,
+> You are Session A on FindMySpot. You own Python only: `run.py`, `calibrate.py`, `parktech/`,
 > `config/`. Never edit `web/`. Read `CLAUDE.md` and `contracts/state.schema.json` first.
 > Workflow: branch off main, one file per commit, then `gh pr create`. Never push to main.
 > Never put AI attribution in a commit message or PR body.
@@ -481,7 +481,7 @@ Paste these as the first message so each agent knows its boundary before it writ
 > different camera, in that order. Do not fine-tune.
 
 **Session B (Sharva's machine, frontend):**
-> You are Session B on ParkTech. You own `web/` only. Never edit Python files. Read `CLAUDE.md`,
+> You are Session B on FindMySpot. You own `web/` only. Never edit Python files. Read `CLAUDE.md`,
 > `contracts/state.schema.json`, `contracts/mock_state.json`, and `web/docs/DESIGN.md` first.
 > Workflow: branch off main, one file per commit, then `gh pr create`. Never push to main.
 > Never put AI attribution in a commit message or PR body.
