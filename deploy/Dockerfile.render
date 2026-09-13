@@ -1,0 +1,35 @@
+# The same image as deploy/Dockerfile, built from the repo instead of from a
+# bundle.
+#
+# Render builds from a git checkout, so there is no make_bundle.py step and the
+# paths differ. Kept as a separate file rather than parameterising one, because
+# a Dockerfile that silently works two ways is worse than two that each work
+# one way. Both install the same requirements and run the same command.
+
+FROM python:3.12-slim
+
+# No apt layer. opencv-python-headless does not need libGL or glib, verified by
+# exercising every cv2 call this pipeline makes in an image without them.
+
+WORKDIR /app
+
+COPY deploy/requirements-server.txt .
+RUN pip install --no-cache-dir -r requirements-server.txt
+
+# Explicit copies rather than COPY . so web/, venv/ and the rest of the dataset
+# never enter the image even if they are present in the build context.
+COPY run.py ./
+COPY parktech/ ./parktech/
+COPY config/ ./config/
+COPY contracts/ ./contracts/
+COPY data/ ./data/
+
+# Render injects PORT and expects the service to listen on it. The default here
+# only matters when running the image by hand.
+ENV HOST=0.0.0.0
+ENV PORT=10000
+EXPOSE 10000
+
+# DATABASE_URL is set in the Render dashboard, not here. ALLOWED_ORIGINS comes
+# from render.yaml.
+CMD ["sh", "-c", "python run.py --host $HOST --port $PORT --start 11:30"]
