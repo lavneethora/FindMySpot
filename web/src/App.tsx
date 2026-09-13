@@ -23,7 +23,12 @@ export default function App() {
   const [route, navigate] = useRoute();
 
   // Stable, so the memoized stall layer is not invalidated on every state message.
-  const onSelect = useCallback((spotId: string) => setSelected(spotId), []);
+  // Clicking the chosen stall again clears it. A map that can only ever add a route leaves
+  // the driver stuck with a decision they have changed their mind about.
+  const onSelect = useCallback(
+    (spotId: string) => setSelected((current) => (current === spotId ? null : spotId)),
+    [],
+  );
 
   return (
     <>
