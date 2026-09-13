@@ -16,7 +16,9 @@ export default function App() {
   // Which stall the driver is being shown the way to. Not a reservation: nothing physically
   // stops another car taking it, so the product does not pretend to hold it.
   const [selected, setSelected] = useState<string | null>(null);
-  const routes = useRoutes(selected ?? state?.best_spot ?? null, connection === "mock");
+  // Only once a stall is chosen. Routing to the closest free stall on load drew a path
+  // nobody asked for, and made the map look like it had already decided for the driver.
+  const routes = useRoutes(selected, connection === "mock");
   const analytics = useAnalytics(fetchAnalytics, state);
   const [route, navigate] = useRoute();
 
