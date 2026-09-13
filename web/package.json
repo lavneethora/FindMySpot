@@ -10,7 +10,8 @@
     "typecheck": "tsc -b",
     "check:mock": "vite build --ssr mockcheck.ts --outDir dist/check --logLevel warn && node dist/check/mockcheck.js",
     "check:render": "vite build --ssr rendercheck.tsx --outDir dist/render --logLevel warn && node dist/render/rendercheck.js",
-    "check": "npm run check:mock && npm run check:render"
+    "check": "npm run check:mock && npm run check:render",
+    "check:live": "vite build --ssr preflight.ts --outDir dist/preflight --logLevel warn && node dist/preflight/preflight.js"
   },
   "dependencies": {
     "react": "^19.3.0",
