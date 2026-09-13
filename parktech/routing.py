@@ -21,6 +21,30 @@ def _distance(a, b):
     return math.hypot(a[0] - b[0], a[1] - b[1])
 
 
+def _simplify(points):
+    """Drop points that leave the path on the same straight line.
+
+    A route can reach its aisle at the junction and then double back along that
+    aisle to the stall's column, which is a real overshoot: the driver passes
+    the space, stops, and reverses. Three consecutive points sharing an x or a
+    y lie on one line whatever their order, so the middle one is never needed.
+    """
+    if len(points) < 3:
+        return points
+    out = [points[0]]
+    for point in points[1:]:
+        while len(out) >= 2:
+            a, b = out[-2], out[-1]
+            same_row = abs(a[1] - b[1]) < 1e-9 and abs(b[1] - point[1]) < 1e-9
+            same_col = abs(a[0] - b[0]) < 1e-9 and abs(b[0] - point[0]) < 1e-9
+            if same_row or same_col:
+                out.pop()
+            else:
+                break
+        out.append(point)
+    return out
+
+
 def build_graph(aisles):
     """{node: [(neighbour, cost), ...]} from the layout's lane network."""
     nodes = aisles.get("nodes", {})
@@ -148,7 +172,7 @@ def route_to_stall(layout, spot_id, start_node="entrance"):
     if _distance(path[-1], turn) > 1e-6:
         path.append(turn)
     path.append([centroid[0], centroid[1]])
-    return [[round(x, 4), round(y, 4)] for x, y in path]
+    return [[round(x, 4), round(y, 4)] for x, y in _simplify(path)]
 
 
 # Where the demo puts cars that are already circling the lot. Fractions along
@@ -221,6 +245,5 @@ def route_from_driver(layout, driver, spot_id):
 
     if not best:
         return []
-    if _distance(here, best[0]) > 1e-6:
-        return [here, *best]
-    return best
+    joined = best if _distance(here, best[0]) <= 1e-6 else [here, *best]
+    return [[round(x, 4), round(y, 4)] for x, y in _simplify(joined)]
