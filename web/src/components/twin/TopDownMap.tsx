@@ -18,10 +18,11 @@ interface TopDownMapProps {
   state: ParkState | null;
   heldSpot?: string | null;
   route?: Point[];
+  otherRoutes?: Point[][];
   onSelect?: (spotId: string) => void;
 }
 
-export function TopDownMap({ layout, state, heldSpot = null, route, onSelect }: TopDownMapProps) {
+export function TopDownMap({ layout, state, heldSpot = null, route, onSelect, otherRoutes }: TopDownMapProps) {
   const svg = useRef<SVGSVGElement>(null);
   const [aspect, setAspect] = useState(MAP_ASPECT);
 
@@ -97,7 +98,7 @@ export function TopDownMap({ layout, state, heldSpot = null, route, onSelect }: 
 
       {/* Above the stalls so it is never hidden by one, below the cars so a vehicle driving
           the route still reads as being on top of it. */}
-      {route && route.length > 1 && <RouteLayer route={route} />}
+      {route && route.length > 1 && <RouteLayer route={route} others={otherRoutes} />}
 
       <CarLayer cars={state?.cars ?? []} />
 
