@@ -21,6 +21,7 @@ else changes.
 """
 
 import os
+import pathlib
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -32,8 +33,32 @@ DEFAULT_URL = "postgresql://parktech:parktech@localhost:5432/parktech"
 HOLD_SECONDS = 90
 
 
+def _env_file_url():
+    """Read DATABASE_URL out of .env, if there is one.
+
+    Deliberately not python-dotenv. One value, read once, is not worth a
+    dependency, and a connection string belongs in a gitignored file rather
+    than in a shell history or a tracked config.
+    """
+    path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    if not path.exists():
+        return None
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if line.startswith("DATABASE_URL=") and not line.startswith("#"):
+            return line.split("=", 1)[1].strip().strip('"').strip("'") or None
+    return None
+
+
 def url():
-    return os.environ.get("DATABASE_URL", DEFAULT_URL)
+    """Where the database lives.
+
+    An exported DATABASE_URL wins, then .env, then the local container. That
+    order matters at a demo: if the managed host is unreachable, one `unset`
+    or one commented line puts everything back on the container running on
+    this machine, with no code change.
+    """
+    return os.environ.get("DATABASE_URL") or _env_file_url() or DEFAULT_URL
 
 
 @contextmanager
