@@ -84,16 +84,35 @@ export interface Hold {
 /**
  * GET /api/analytics, as the pipeline actually returns it.
  *
- * Worth reading carefully: the buckets are transition COUNTS, not occupancy levels.
- * parking_events stores state changes only, so the continuous aggregate over it can report
- * how many stalls filled and emptied in each five minute window, but not how full the lot
- * was. The curve has to be reconstructed. See lib/analytics.ts.
+ * Two different quantities here. `buckets` are transition COUNTS: how many stalls filled and
+ * emptied in each window. `levels` is the occupancy curve itself, recorded once per frame by
+ * the pipeline. One is the derivative of the other.
+ *
+ * Read `levels` for the curve. The buckets are still the right source for arrivals versus
+ * departures, which is a genuinely different question.
  */
 export interface AnalyticsBucket {
   /** Start of the bucket, ISO. */
   t: string;
   became_occupied: number;
   became_available: number;
+}
+
+/**
+ * Occupancy level per bucket, recorded once per frame by the pipeline.
+ *
+ * This is the curve itself, not its derivative. Deltas cannot produce it: summing them needs a
+ * starting occupancy nobody stores, which is why this used to be reconstructed by counting
+ * backwards from the present and came out approximate at the far end.
+ */
+export interface AnalyticsLevel {
+  /** Start of the bucket, ISO. */
+  t: string;
+  /** Mean occupied stalls across the bucket. */
+  occupied: number;
+  /** Highest occupancy seen in the bucket. */
+  peak: number;
+  total: number;
 }
 
 export interface AnalyticsEvent {
@@ -104,6 +123,8 @@ export interface AnalyticsEvent {
 
 export interface Analytics {
   camera_id: string;
+  /** The occupancy curve. Prefer this over reconstructing from buckets. */
+  levels?: AnalyticsLevel[];
   buckets: AnalyticsBucket[];
   recent: AnalyticsEvent[];
 }
