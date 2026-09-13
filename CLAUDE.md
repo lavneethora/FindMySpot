@@ -1,4 +1,4 @@
-# ParkTech
+# FindMySpot
 
 HackWesTX VII. Two people, two machines, two parallel Claude sessions.
 Read `PRD.md` for the full plan and `contracts/README.md` for the interface.
