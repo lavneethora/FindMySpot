@@ -44,7 +44,7 @@ closing-slide material only. Do not build them.
 1. Detect vehicles in PKLot footage and classify each annotated stall occupied or vacant
 2. Report per-stall accuracy against PKLot ground truth across a full replayed day
 3. Update state as occupancy changes, with debounce so nothing flickers
-4. Render a rectified top-down twin that stays synchronized with the camera panel
+4. Render a top-down twin, in a driver view that shows no camera footage
 5. Click a green stall, get a soft hold plus an animated in-lot route to it
 6. Show a real occupancy-over-time chart built from stored time-series events
 
@@ -70,11 +70,20 @@ PKLot day sequence (fixed camera, 5-min intervals, ~288 frames/day)
       |                          |
       +----------+---------------+
                  |
-        React frontend (single page)
-        |- Vision panel      (boxes, track IDs, stall outlines, live accuracy)
-        |- Digital twin      (homography-rectified top-down, red/green/amber)
-        |- Click to route    (soft hold + animated path)
-        `- Analytics strip   (occupancy curve, turnover, peak)
+        React frontend, TWO views
+        |
+        |- DRIVER VIEW  "/"        the product. What a user actually opens.
+        |   |- Digital twin        top-down map, red/green/amber
+        |   |- Click to route      soft hold + animated path
+        |   `- Best stall          nearest free spot to the entrance
+        |      NO camera feed. A driver has no business seeing surveillance
+        |      footage of a car park, and showing it contradicts our own
+        |      privacy claim that video never leaves the edge device.
+        |
+        `- OPERATOR VIEW  "/ops"   the technical proof, for judges and staff
+            |- Vision panel        boxes, stall outlines, live accuracy
+            |- Analytics strip     occupancy curve, turnover, peak
+            `- Camera health       the footage belongs here, and only here
 ```
 
 **Single Python process.** One `python run.py` starts replay, inference, the API, the MJPEG
@@ -490,9 +499,10 @@ Algorithms decide what we see online. We wanted computer vision to improve somet
 happening around us."
 
 **The 90-second run:**
-1. "Every lot already has cameras. None of them know which stalls are free."
-2. Point left: boxes, track IDs, stall outlines live on the footage
-3. Point right: "every stall has a digital counterpart"
+1. Open on the DRIVER VIEW. "This is what a student opens. 100 stalls, live."
+2. "Every lot already has cameras. None of them know which stalls are free."
+3. Then reveal the OPERATOR VIEW: boxes, stall outlines, accuracy on the real footage.
+   Two screens if you have them, which is far stronger than one crowded page
 4. Stay quiet while a car leaves. Left shows exiting, right flips red to green, count ticks up
 5. Click the green stall: hold goes amber, route animates
 6. "98% per-stall accuracy, measured against ground truth. 97.7% in sun, 98.4% in rain, with
@@ -511,7 +521,11 @@ admitting it.
   labelled rainy and cloudy days. Night is **not** covered by PKLot at all and is unvalidated;
   it would need IR-capable hardware. Say that plainly rather than implying the number covers it.
 - *Occlusion?* Overlapping camera zones in production. Show the architecture graphic
-- *Privacy?* Only occupancy state leaves the device. No faces, no plates, no video retained
+- *Privacy?* Only occupancy state leaves the device. No faces, no plates, no video retained.
+  This is why the driver view carries no camera feed at all: the footage exists for the
+  operator, never for the public. If the product streamed the lot to every user we would be
+  claiming one thing and shipping another, and that is the kind of gap a judge finds in one
+  question.
 - *How is this different from SpotHero or ParkMobile?* They handle reservations and payment.
   None of them know whether a physical stall is empty right now. That gap is the claim
 - *Did you hand-annotate the stalls?* No. Four clicks calibrate a camera, and the rectification
