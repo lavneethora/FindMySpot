@@ -1,7 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useParkTech } from "./hooks/useParkTech";
 import { useActivityLog } from "./hooks/useActivityLog";
-import { useHold } from "./hooks/useHold";
+import { useRoutes } from "./hooks/useRoutes";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useRoute } from "./lib/router";
 import { Mesh } from "./components/ui/Mesh";
@@ -12,12 +12,15 @@ import { OpsView } from "./views/OpsView";
 export default function App() {
   const { layout, state, connection, error, hold, fetchAnalytics } = useParkTech();
   const events = useActivityLog(state);
-  const holding = useHold(hold, state);
+  // Which stall the driver is being shown the way to. Not a reservation: nothing physically
+  // stops another car taking it, so the product does not pretend to hold it.
+  const [selected, setSelected] = useState<string | null>(null);
+  const routes = useRoutes(selected ?? state?.best_spot ?? null, connection === "mock");
   const analytics = useAnalytics(fetchAnalytics, state);
   const [route, navigate] = useRoute();
 
   // Stable, so the memoized stall layer is not invalidated on every state message.
-  const onSelect = useCallback((spotId: string) => void holding.claim(spotId), [holding.claim]);
+  const onSelect = useCallback((spotId: string) => setSelected(spotId), []);
 
   return (
     <>
@@ -55,7 +58,14 @@ export default function App() {
             events={events}
           />
         ) : (
-          <DriverView layout={layout} state={state} holding={holding} onSelect={onSelect} />
+          <DriverView
+            layout={layout}
+            state={state}
+            selected={selected}
+            route={routes.primary}
+            otherRoutes={routes.others}
+            onSelect={onSelect}
+          />
         )}
 
         <footer className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-ink/35">
