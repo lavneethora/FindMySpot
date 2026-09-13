@@ -65,8 +65,8 @@ export default function App() {
             layout={layout}
             state={state}
             selected={selected}
-            route={routes.primary}
-            otherRoutes={routes.others}
+            route={routes.entrance}
+            drivers={routes.drivers}
             onSelect={onSelect}
           />
         )}
