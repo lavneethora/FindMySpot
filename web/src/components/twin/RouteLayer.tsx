@@ -13,11 +13,14 @@ interface RouteLayerProps {
 }
 
 /**
- * The animated path from the entrance to the held stall.
+ * The routes to a chosen stall: the driver's own, plus one per car already in the lot.
  *
- * The route is computed by the server and arrives with the hold. Declaring pathLength as 1
- * lets the dash animation work in fractions of the route, so the same keyframes look right
- * whether the stall is the nearest one or the furthest.
+ * Routes are computed by the pipeline against the lane graph, so every segment is a real
+ * lane. Declaring pathLength as 1 lets the dash animation work in fractions of the route, so
+ * the same keyframes look right whether the stall is the nearest one or the furthest.
+ *
+ * Every route draws itself, staggered. A path that simply appears reads as a diagram; one
+ * that draws itself reads as a car setting off, which is the point of showing several at once.
  */
 /** One colour per car, so three paths down the same lane stay tellable apart. */
 const DRIVER_COLOURS = ["#2f6f8e", "#8a5cc4", "#b8722a"];
@@ -44,16 +47,44 @@ export function RouteLayer({ route, drivers = [] }: RouteLayerProps) {
         return (
           <g key={`driver-${driver.id}`} transform={`translate(${nudge} ${nudge})`}>
             {driver.route.length >= 2 && (
-              <polyline
-                points={path(driver.route)}
-                fill="none"
-                stroke={colour}
-                strokeOpacity={0.9}
-                strokeWidth={5}
-                strokeDasharray="16 10"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              <>
+                {/* Drawn in, same as the main route. A path that simply appears
+                    reads as a diagram; one that draws itself reads as a car
+                    setting off, which is the whole point of showing several. */}
+                <polyline
+                  points={path(driver.route)}
+                  fill="none"
+                  stroke={colour}
+                  strokeOpacity={0.85}
+                  strokeWidth={5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pathLength={1}
+                  strokeDasharray={1}
+                  style={{
+                    animation: "route-draw 700ms ease-out forwards",
+                    // Staggered so three cars set off in turn rather than
+                    // together, which is easier to follow and looks less like
+                    // one path splitting.
+                    animationDelay: `${index * 220}ms`,
+                  }}
+                />
+                {/* The moving dashes, once the path has drawn. */}
+                <polyline
+                  points={path(driver.route)}
+                  fill="none"
+                  stroke="rgb(255 253 250 / 0.75)"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pathLength={1}
+                  strokeDasharray="0.022 0.046"
+                  style={{
+                    animation: "route-flow 1.1s linear infinite",
+                    animationDelay: `${700 + index * 220}ms`,
+                  }}
+                />
+              </>
             )}
             {/* The car itself. Drawn as a rounded body rather than a dot so it reads as a
                 vehicle waiting in the aisle, not as another occupied stall. */}
