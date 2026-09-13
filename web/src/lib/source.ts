@@ -139,8 +139,15 @@ class LiveSource implements Source {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ spot_id: spotId, session_id: sessionId() }),
     });
-    if (!response.ok) throw new Error(`POST /api/hold returned ${response.status}`);
-    return asHold(await response.json(), spotId);
+    // Parse the body even on a refusal. The pipeline answers a conflict with 409 and an
+    // explanatory body, and "returned 409" on screen is strictly worse than what it says.
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(`POST /api/hold returned ${response.status}`);
+    }
+    return asHold(payload, spotId);
   }
 
   start(onState: (state: ParkState) => void, onConnection: (c: Connection) => void): void {
