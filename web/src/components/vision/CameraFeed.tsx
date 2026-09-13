@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { api } from "../../lib/apiBase";
 
 interface CameraFeedProps {
   /** Rendered instead of the stream if the pipeline is not serving frames. */
@@ -20,7 +21,7 @@ export function CameraFeed({ fallback, onStatusChange }: CameraFeedProps) {
 
   return (
     <img
-      src="/video"
+      src={api("/video")}
       alt="Live camera view of the lot, with detected vehicles and stall outlines drawn by the pipeline"
       className="h-full w-full object-cover"
       onError={() => {
