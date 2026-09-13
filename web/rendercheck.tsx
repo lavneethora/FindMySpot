@@ -500,5 +500,42 @@ const opsHeader = render(
 );
 check("the operator header offers the way back", opsHeader.includes("Driver view") && opsHeader.includes('href="/"'));
 
+// ---- issue 29: the operator footer notes are gone ------------------------------------
+const opsPage = render("whole app on the operator route", <App />);
+check("the benchmark note is gone", !opsPage.includes("PKLot benchmark"));
+check("the ground truth note is gone", !opsPage.includes("dataset's own ground truth"));
+check(
+  "the driver privacy line survives",
+  empty.includes("Only occupancy state leaves the camera"),
+);
+
+// ---- issue 30: the header pills wear liquid glass -------------------------------------
+const glassHeader = render(
+  "header with glass pills",
+  <AppHeader layout={layout} state={state} connection="live" route="driver" onNavigate={() => {}} />,
+);
+// One surface per pill: the view link, lot time, connection, edge only.
+const surfaces = (glassHeader.match(/backdrop-filter:url\(&quot;#liquid-glass&quot;\)|backdropFilter/g) ?? []).length;
+check("every header pill gets a refraction layer", surfaces >= 4, `${surfaces} layers`);
+check("the pills are round", (glassHeader.match(/rounded-full/g) ?? []).length >= 8);
+check("the glass carries a rim", glassHeader.includes("inset_1.5px_1.5px"));
+
+// The reference component would have made these buttons. They must stay a link and spans, or
+// middle click and open in new window stop working and the two screen demo breaks.
+check("the view switch is still an anchor with an href", glassHeader.includes('href="/ops"'));
+check("the view switch is not a button", !/<button[^>]*>\s*<[^>]*><\/[^>]*>\s*Operator view/.test(glassHeader));
+
+// The filter is referenced by id, so exactly one definition must exist on the page.
+const filterDefs = (empty.match(/id="liquid-glass"/g) ?? []).length;
+check("the glass filter is defined exactly once per page", filterDefs === 1, `${filterDefs} definitions`);
+check("the filter actually displaces", empty.includes("feDisplacementMap"));
+
+// Pills inside panels stay flat: glass there refracts a solid panel and buys nothing.
+const panelPill = render(
+  "a pill inside a panel",
+  <AnalyticsStrip analytics={{ series: rebuilt, loading: false, error: null }} connection="mock" />,
+);
+check("panel pills are not on glass", !panelPill.includes("liquid-glass"));
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

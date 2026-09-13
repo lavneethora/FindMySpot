@@ -1,6 +1,7 @@
 import type { Layout, ParkState } from "../lib/contract";
 import type { Connection } from "../lib/source";
 import { Pill } from "./ui/Badge";
+import { LiquidSurface, liquidPill } from "./ui/LiquidGlass";
 import { pathOf, type Route } from "../lib/router";
 
 const CONNECTION: Record<Connection, { copy: string; tone: "neutral" | "live" | "warn"; title: string }> = {
@@ -48,15 +49,22 @@ export function AppHeader({ layout, state, connection, route, onNavigate }: AppH
             event.preventDefault();
             onNavigate(route === "ops" ? "driver" : "ops");
           }}
-          className="inline-flex h-7 items-center rounded-full border border-card-border bg-white/50 px-3 text-caption font-medium text-ink/70 transition-[filter] hover:brightness-95"
+          /* Still an anchor, and still the same href. The glass is a surface, not a control:
+             turning these into buttons to match the reference component would have cost the
+             middle click and the open in new window that the two screen demo relies on. */
+          className={`${liquidPill} text-ink/80 transition-transform duration-200 hover:scale-[1.03] active:scale-[0.98]`}
         >
-          {route === "ops" ? "Driver view" : "Operator view"}
+          <LiquidSurface>{route === "ops" ? "Driver view" : "Operator view"}</LiquidSurface>
         </a>
-        {lotTime && <Pill title="Timestamp of the frame this state came from">Lot time {lotTime}</Pill>}
-        <Pill tone={link.tone} title={link.title}>
+        {lotTime && (
+          <Pill glass title="Timestamp of the frame this state came from">
+            Lot time {lotTime}
+          </Pill>
+        )}
+        <Pill glass tone={link.tone} title={link.title}>
           {link.copy}
         </Pill>
-        <Pill title="Only occupancy state leaves the device. No faces, no plates, no retained video.">
+        <Pill glass title="Only occupancy state leaves the device. No faces, no plates, no retained video.">
           Edge only
         </Pill>
       </div>
