@@ -1,19 +1,16 @@
 /**
- * Turning stored state changes into an occupancy curve.
+ * The occupancy curve.
  *
- * `parking_events` records transitions, never levels, so the continuous aggregate can say how
- * many stalls filled and emptied in each bucket but not how full the lot was. Those are
- * different quantities: one is the derivative of the other.
+ * The pipeline now records the level once per frame and serves it as `levels`, so the curve is
+ * read directly. `fromLevels` is the path that runs.
  *
- * The lot's occupancy right now is known exactly, from the live state message. So the curve is
- * recovered by walking the buckets BACKWARDS from that known endpoint, subtracting each
- * bucket's net change as we go. Forwards would need a starting occupancy nobody stores.
- *
- * This is arithmetic on data the pipeline already sends, not a second source of truth. If the
- * vision lane later returns the level directly, delete this and read it.
+ * `reconstruct` is kept for the mock and for any pipeline old enough not to send levels. It
+ * walks the transition buckets BACKWARDS from the known present, because summing them forwards
+ * would need a starting occupancy nobody stores. That made the far end of the curve
+ * approximate, which is exactly why reading the real level is better.
  */
 
-import type { AnalyticsBucket } from "./contract";
+import type { AnalyticsBucket, AnalyticsLevel } from "./contract";
 
 export interface OccupancyPoint {
   t: string;
@@ -62,6 +59,69 @@ function inferBucketMinutes(points: { time: number }[]): number | null {
   gaps.sort((a, b) => a - b);
   const median = gaps[Math.floor(gaps.length / 2)];
   return median > 0 ? Math.round(median / 60_000) : null;
+}
+
+/**
+ * Read the curve the pipeline recorded. No inference, no approximation.
+ *
+ * Arrivals and departures still come from the transition buckets, matched by bucket start, so
+ * the bars under the curve remain the stored counts rather than anything derived.
+ */
+export function fromLevels(
+  levels: AnalyticsLevel[],
+  buckets: AnalyticsBucket[],
+  total: number,
+): OccupancySeries {
+  const byTime = new Map<number, AnalyticsBucket>();
+  for (const b of buckets) {
+    const t = new Date(b.t).getTime();
+    if (Number.isFinite(t)) byTime.set(t, b);
+  }
+
+  const points: OccupancyPoint[] = levels
+    .map((l) => {
+      const time = new Date(l.t).getTime();
+      const bucket = byTime.get(time);
+      return {
+        t: l.t,
+        time,
+        occupied: Math.round(Number(l.occupied) || 0),
+        arrivals: Number(bucket?.became_occupied) || 0,
+        departures: Number(bucket?.became_available) || 0,
+      };
+    })
+    .filter((p) => Number.isFinite(p.time))
+    .sort((a, b) => a.time - b.time);
+
+  if (points.length === 0) return { ...EMPTY, total: Math.max(0, total) };
+
+  const lotTotal = Number(levels[0]?.total) || total;
+  const bucketMinutes = inferBucketMinutes(points);
+  const spanMs = points[points.length - 1].time - points[0].time;
+  const spanHours = (spanMs + (bucketMinutes ?? 5) * 60_000) / 3_600_000;
+
+  let peak = points[0];
+  let busiest = points[0];
+  let events = 0;
+  for (const p of points) {
+    if (p.occupied > peak.occupied) peak = p;
+    if (p.arrivals + p.departures > busiest.arrivals + busiest.departures) busiest = p;
+    events += p.arrivals + p.departures;
+  }
+
+  return {
+    points,
+    total: lotTotal,
+    peak,
+    busiest,
+    events,
+    bucketMinutes,
+    spanHours,
+    turnoverPerStallPerHour:
+      lotTotal > 0 && spanHours > 0 ? events / lotTotal / spanHours : 0,
+    // Measured, not inferred, so there is no incomplete window to warn about.
+    incomplete: false,
+  };
 }
 
 export function reconstruct(
