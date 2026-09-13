@@ -158,13 +158,8 @@ def build(spaces, margin=0.06, row_spec=None, drivable_gaps=None):
 
     usable = 1.0 - 2 * margin
     pts = [p for s in spaces for p in s.contour]
-    lot_x0, lot_x1 = min(p[0] for p in pts), max(p[0] for p in pts)
     lot_y0, lot_y1 = min(p[1] for p in pts), max(p[1] for p in pts)
-    span_x = (lot_x1 - lot_x0) or 1.0
     span_y = (lot_y1 - lot_y0) or 1.0
-
-    def norm_x(x):
-        return margin + (x - lot_x0) / span_x * usable
 
     def norm_y(y):
         return margin + (y - lot_y0) / span_y * usable
@@ -174,15 +169,20 @@ def build(spaces, margin=0.06, row_spec=None, drivable_gaps=None):
     # sliver: the narrowest row is narrow because its bays are wider, not
     # because the lot is, and honouring that shrank all 100 stalls to suit one
     # row of twelve.
-    # Each row starts at its true horizontal offset, so the width a row can use
-    # is whatever remains between that offset and the right margin. Take the
-    # tightest of those, or a row that starts far right runs off the map.
-    right = 1.0 - margin
-    stall_w = usable
-    for row in rows:
-        row_pts = [p for s in row for p in s.contour]
-        left = norm_x(min(p[0] for p in row_pts))
-        stall_w = min(stall_w, (right - left) / len(row))
+    #
+    # Every row also starts at the same left edge. The annotations say
+    # otherwise, each row down the frame beginning further left than the one
+    # above, but that is the camera and not the lot. Fitting the rows' left and
+    # right edges against their apparent stall width puts both on the same
+    # vanishing point, x=788.6 in frame pixels, and recovers a row length of
+    # 22.00 stalls against an actual 22. That only holds if the four long rows
+    # are physically identical and aligned. The short bottom row lands within
+    # 2% of the same left edge.
+    #
+    # Widths here were already normalised while offsets were not, which is the
+    # inconsistency that made the map read as a staircase.
+    stall_w = usable / max(len(row) for row in rows)
+    row_left = margin
 
     # Rows are stacked by the real gap between their EDGES, not between their
     # Only the first row's real position is needed; everything below it is
@@ -224,8 +224,7 @@ def build(spaces, margin=0.06, row_spec=None, drivable_gaps=None):
 
     layout = {}
     for r, row in enumerate(rows):
-        row_pts = [p for s in row for p in s.contour]
-        left = norm_x(min(p[0] for p in row_pts))
+        left = row_left
         y0 = tops[r]
         y1 = y0 + stall_h
         for i, space in enumerate(row):
