@@ -15,7 +15,7 @@ from parktech import db, routing
 
 
 def create_app(pipeline, layout):
-    app = FastAPI(title="ParkTech")
+    app = FastAPI(title="FindMySpot")
 
     # The frontend dev server runs on another port. This is a demo running on
     # one laptop, not something exposed to a network.
