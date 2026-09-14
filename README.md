@@ -209,18 +209,6 @@ data/cache/      precomputed detections (committed)
 The Python package is still named `parktech/` from before the rename. It is internal, and nothing
 user-facing refers to it.
 
-## What is not built
-
-Honest about the edges, because these are the first questions anyone asks:
-
-- **One camera, one zone.** Multi-camera fusion and whole-lot coverage are design, not code.
-- **Night.** Unvalidated, and the dataset does not cover it.
-- **Automatic stall discovery.** Stall outlines come from the dataset's annotations; a new camera
-  is configured once at install.
-- **Real deployment on live infrastructure.** No university hands a student team a camera feed.
-
-Full detail, including the state contract, is in [PRD.md](PRD.md).
-
 ## Team
 
 [@lavneethora](https://github.com/lavneethora) and [@sharvapatill](https://github.com/sharvapatill)
