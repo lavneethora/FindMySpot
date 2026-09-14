@@ -54,13 +54,20 @@ comparison stays reproducible.
 
 ### The map is a schematic, and says so
 
-Stall sizes on the map are uniform. Row spacing, horizontal offsets and which gaps are drivable
-all come from the real geometry, but the drawing is regularised so it reads as a car park rather
-than a perspective photograph traced by hand.
+What comes from the lot is its **structure**: which rows exist, how many stalls each holds, and
+which stall sits where along each row. Everything else is regularised, so the map reads as a car
+park rather than a perspective photograph traced by hand.
 
-Grass medians versus driving aisles are **measured, not assumed**: the pixels between each pair
-of rows are sampled in the real frame, and green means grass. Routing waypoints only go in
-drivable gaps, so a route can never send someone across a lawn.
+Stall sizes are uniform, every driving aisle is one fixed width and every planted median another,
+and all rows share a left edge. Those last two were originally taken from the annotations and
+both turned out to be carrying the camera's perspective rather than the lot's geometry. The row
+offsets are the clearer case: fitting each row's left and right edge against its apparent stall
+width puts both on the same vanishing point and recovers a row length of 22.00 stalls against an
+actual 22, which only holds if the four long rows are physically identical and aligned.
+
+Which gaps between rows are drivable is **configured per camera** in `config/rows.json`, not
+inferred. Lane waypoints are only placed in those gaps, so a route can never cross a grass median
+for a structural reason rather than a heuristic one: there is no edge in the graph to cross it.
 
 An earlier version rectified the camera plane with a four-point homography. It was dropped: this
 camera is already close to overhead, so correcting it distorted the layout more than it fixed.
@@ -89,7 +96,24 @@ does not use it.
 
 ## Accuracy
 
-Measured against PKLot's own ground-truth labels, not asserted.
+Measured against PKLot's own ground-truth labels, not asserted. Two cameras, and the numbers are
+not interchangeable: **PUCPR is the one the demo runs on**, UFPR04 is where the occupancy method
+was chosen and where the weather breakdown was measured.
+
+### PUCPR, the demo camera
+
+| Frames | Decisions | Accuracy | False positives |
+|---|---|---|---|
+| 150 | 14111 | 96.0% | 23 in 7628 free stalls |
+
+150 frames strided across the whole dataset, scored with the shipping configuration:
+`yolo11m` at 1920px, confidence 0.15, overlap 0.35. Reproduce it with:
+
+```bash
+python scripts/accuracy.py --camera PUCPR --model yolo11m.pt --imgsz 1920 --conf 0.15 --limit 150
+```
+
+### UFPR04, by weather
 
 | Weather | Frames | Decisions | Accuracy | False positives |
 |---|---|---|---|---|
