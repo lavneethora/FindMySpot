@@ -198,8 +198,12 @@ Rain scores slightly **better** than sun, most likely because overcast light rem
 shadows that blur a car's boundary against the tarmac. Three false positives in 2984 decisions
 across every condition.
 
-Still unmeasured: UFPR05 and PUCPR, and night, which PKLot does not cover at all. Say so if
-asked rather than implying the number generalises.
+PUCPR, the camera the demo actually runs on, measures **96.0%** over 150 frames and 14111
+decisions, with 23 false positives across 7628 free stalls. The figures above are UFPR04 and do
+not transfer to it: PUCPR fits 100 stalls into the same frame, so every car is far smaller.
+
+Still unmeasured: UFPR05, and night, which PKLot does not cover at all. Say so if asked rather
+than implying the number generalises.
 
 **Debounce:** occupied after 3 consecutive positive frames, available after 5 consecutive
 negative. Prevents the red/green strobing that makes a demo look broken.
