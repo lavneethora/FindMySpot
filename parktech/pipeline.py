@@ -425,7 +425,11 @@ class Pipeline:
                 colour = (80, 210, 80)  # green, free
             cv2.polylines(image, [poly], True, colour, 2)
 
-        ok, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        # Quality 60 rather than 80. This JPEG only feeds the operator view's
+        # camera panel, which is drawn small, and at that size the two are
+        # indistinguishable. It is about 30% fewer bytes on every frame of the
+        # stream.
+        ok, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 60])
         return buf.tobytes() if ok else None
 
     def run(self):
