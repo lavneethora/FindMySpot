@@ -192,17 +192,25 @@ def create_app(pipeline, layout):
     @app.get("/video")
     def video():
         def frames():
+            import time as _time
+
+            # Send a frame only when the pipeline has made a new one. This used
+            # to resend whatever was current every 0.2s, so at 2 fps replay 60%
+            # of the stream was the same frame again: about 1.9 GB an hour per
+            # open operator tab, which exhausted a free tier's bandwidth.
+            # Checking identity is free; nothing goes on the wire until the
+            # frame actually changes.
+            last = None
             while True:
                 jpeg = pipeline.annotated
-                if jpeg:
+                if jpeg and jpeg is not last:
+                    last = jpeg
                     yield (
                         b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
                         + jpeg
                         + b"\r\n"
                     )
-                import time as _time
-
-                _time.sleep(0.2)
+                _time.sleep(0.05)
 
         return StreamingResponse(
             frames(), media_type="multipart/x-mixed-replace; boundary=frame"
