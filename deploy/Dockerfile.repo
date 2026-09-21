@@ -1,0 +1,41 @@
+# The same image as deploy/Dockerfile, built from a checkout of the repo
+# instead of from a bundle.
+#
+# The repo carries the 400 replayed frames and the detection cache, so a server
+# can clone it and build directly with no make_bundle.py step. The paths differ
+# from the bundle layout, which is why this is a separate file rather than one
+# parameterised Dockerfile: one that silently works two ways is worse than two
+# that each work one way. Both install the same requirements and run the same
+# command.
+#
+#   docker build -f deploy/Dockerfile.repo -t findmyspot .
+
+FROM python:3.12-slim
+
+# No apt layer. opencv-python-headless does not need libGL or glib, verified by
+# exercising every cv2 call this pipeline makes in an image without them.
+
+WORKDIR /app
+
+COPY deploy/requirements-server.txt .
+RUN pip install --no-cache-dir -r requirements-server.txt
+
+# Explicit copies rather than COPY . so web/, venv/ and the rest of the dataset
+# never enter the image even if they are present in the build context.
+COPY run.py ./
+COPY parktech/ ./parktech/
+COPY config/ ./config/
+COPY contracts/ ./contracts/
+COPY data/ ./data/
+
+# Bind every interface inside the container. Publish the port on the host's
+# loopback only (-p 127.0.0.1:8100:8100) so the app is reachable solely through
+# the TLS proxy in front of it.
+ENV HOST=0.0.0.0
+ENV PORT=8100
+EXPOSE 8100
+
+# DATABASE_URL and ALLOWED_ORIGINS come from an env file at run time. There is
+# no database in the image on purpose: one that loses its data on every
+# redeploy is worse than none.
+CMD ["sh", "-c", "python run.py --host $HOST --port $PORT --start 11:30"]
