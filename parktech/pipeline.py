@@ -9,7 +9,7 @@ occupancy curve instead of a fabricated one.
 
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import cv2
@@ -238,7 +238,7 @@ class Pipeline:
         # stills then lays down a real occupancy curve spanning that day, which
         # is the whole point of putting this in a time-series database. Holds
         # stay on wall clock, since those are live interactions.
-        captured = pklot.capture_time(jpg) or datetime.now(timezone.utc)
+        captured = pklot.capture_time(jpg) or datetime.now(UTC)
 
         # Null unless something changed on THIS frame, per contracts/state.schema.json.
         self.last_event = None
