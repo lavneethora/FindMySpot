@@ -108,12 +108,14 @@ def main():
     try:
         db.init()
     except Exception as exc:  # noqa: BLE001
-        # Any failure reaching the database is fatal and the cause varies by
-        # driver, so report whatever it was rather than guessing at types.
-        sys.exit(
-            f"Database unavailable: {exc}\n"
-            "Start it with: docker compose up -d"
-        )
+        # Not fatal. The database stores history; occupancy is computed from
+        # the frame and does not need it. Refusing to start meant a retired
+        # database took the live map down with it, so say so loudly and run
+        # anyway. The cause varies by driver, so report whatever it was rather
+        # than guessing at types.
+        print(f"Database unavailable: {exc}")
+        print("Running without history. Analytics will be empty.")
+        print("Start one with: docker compose up -d")
 
     pipeline = Pipeline(
         dirs[0], args.camera, fps=args.fps, loop=not args.no_loop
