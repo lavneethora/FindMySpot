@@ -20,7 +20,7 @@ rather than guessed at.
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 CAMERAS = ("UFPR04", "UFPR05", "PUCPR")
@@ -67,7 +67,7 @@ def capture_time(frame_path):
     try:
         return datetime.strptime(
             Path(frame_path).stem, "%Y-%m-%d_%H_%M_%S"
-        ).replace(tzinfo=timezone.utc)
+        ).replace(tzinfo=UTC)
     except ValueError:
         return None
 
