@@ -155,12 +155,17 @@ def create_app(pipeline, layout):
     def get_analytics(hours: int = 24):
         # Refresh on read. The background policy runs on a schedule, which is
         # too slow when a demo has just replayed a day and a judge is looking.
+        # An unreachable database returns empty history rather than a 500. The
+        # map and the camera panel do not depend on it, so one dead panel beats
+        # an error the rest of the page has no reason to share.
         try:
             db.refresh_analytics()
+            rows = db.occupancy_history(pipeline.camera_id, hours)
+            levels = db.occupancy_levels(pipeline.camera_id, hours)
+            recent = db.recent_events(pipeline.camera_id)
         except Exception as exc:  # noqa: BLE001
-            print(f"aggregate refresh failed: {exc!r}")
-        rows = db.occupancy_history(pipeline.camera_id, hours)
-        levels = db.occupancy_levels(pipeline.camera_id, hours)
+            print(f"analytics unavailable: {exc!r}")
+            rows, levels, recent = [], [], []
         return {
             "camera_id": pipeline.camera_id,
             # The occupancy curve. Transition counts below are arrivals and
@@ -185,7 +190,7 @@ def create_app(pipeline, layout):
             ],
             "recent": [
                 {"t": t.isoformat(), "spot_id": spot, "status": status}
-                for t, spot, status in db.recent_events(pipeline.camera_id)
+                for t, spot, status in recent
             ],
         }
 
