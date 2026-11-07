@@ -70,6 +70,11 @@ class Pipeline:
         self._next_vehicle_id = 1
         self._matched_boxes = set()
 
+        # Database outages are counted and logged at most once a minute. See
+        # _store.
+        self._db_failures = 0
+        self._db_last_warned = 0.0
+
         # Precomputed detections, keyed by frame filename. Loaded once at
         # startup; falls back to live inference when absent or built for a
         # different detector configuration.
@@ -238,7 +243,7 @@ class Pipeline:
         # Null unless something changed on THIS frame, per contracts/state.schema.json.
         self.last_event = None
         if changes:
-            db.record_changes(self.camera_id, captured, changes)
+            self._store(db.record_changes, self.camera_id, captured, changes)
             spot_id, was, became = changes[-1]
             self.last_event = {
                 "spot_id": spot_id,
@@ -254,16 +259,44 @@ class Pipeline:
         # cannot produce a curve, because deltas do not know where the count
         # started. One row per frame is 288 a day.
         occupied_now = sum(1 for v in state.values() if v)
-        db.record_level(
-            self.camera_id, captured, occupied_now,
+        self._store(
+            db.record_level, self.camera_id, captured, occupied_now,
             len(state) - occupied_now, len(state),
         )
 
-        holds = db.active_holds(self.camera_id)
+        holds = self._store(db.active_holds, self.camera_id) or {}
         cars = self._project_cars(boxes, matches, state)
         self.annotated = self._annotate(image, spaces, boxes, state, holds)
         self.state = self._payload(captured, spaces, state, holds, confs, cars)
         return self.state
+
+    def _store(self, call, *args):
+        """Run a database call, and keep going if the database is unreachable.
+
+        Occupancy is computed from the frame, not from the database. The
+        database holds history, which is worth having and is not worth the live
+        map for: when the managed database behind this was retired, every frame
+        raised, nothing was ever published, and the map sat empty on a page that
+        still returned 200. The demo died for want of a feature nobody was
+        looking at.
+
+        So storage failures degrade to "no history" rather than "no product".
+        Logged once per minute rather than per frame, because a database that is
+        gone is gone for thousands of frames and the log is how you notice.
+        """
+        try:
+            result = call(*args)
+        except Exception as exc:  # noqa: BLE001
+            now = time.monotonic()
+            if now - self._db_last_warned > 60:
+                self._db_last_warned = now
+                print(f"database unavailable, continuing without history: {exc!r}")
+            self._db_failures += 1
+            return None
+        if self._db_failures:
+            print(f"database back after {self._db_failures} failed calls")
+            self._db_failures = 0
+        return result
 
     def _update_vehicle_ids(self, state, changes):
         """Issue a number when a stall fills, retire it when the stall empties.
