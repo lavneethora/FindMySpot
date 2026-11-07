@@ -22,7 +22,12 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install linters
-        run: pip install ruff
+        # Pinned. Unpinned, CI installs whatever ruff released most recently,
+        # so a new rule in a new version fails the build on code nobody has
+        # touched. That is what happened with UP017: six weeks after the last
+        # green run, an unrelated push went red for three pre-existing lines.
+        # Bump this deliberately, not by being the first to push in a month.
+        run: pip install ruff==0.17.4
       - name: Lint
         run: ruff check .
       - name: Package imports
