@@ -23,7 +23,7 @@ else changes.
 import os
 import pathlib
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import psycopg
 
@@ -241,7 +241,7 @@ def place_hold(camera_id, spot_id, session_id, seconds=HOLD_SECONDS):
     Upsert on (camera_id, spot_id) so a stall can only ever be held by one
     session. This is what stops two drivers being sent to the same place.
     """
-    until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+    until = datetime.now(UTC) + timedelta(seconds=seconds)
     with connect() as conn:
         conn.execute(
             "INSERT INTO spot_holds (camera_id, spot_id, session_id, held_until) "
