@@ -7,12 +7,28 @@ contract, so changes here are additive only.
 import asyncio
 import json
 import os
+import threading
+import time
 
 from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from parktech import db, routing
+
+# Nothing here sits behind a login, so each endpoint that costs something is
+# bounded. Analytics is recomputed at most this often however many people ask.
+ANALYTICS_TTL_SECONDS = 30
+ANALYTICS_MAX_HOURS = 168
+
+# Each /video viewer occupies a worker thread for as long as the tab is open.
+# The pool has 40, shared with every other endpoint, so viewers are capped well
+# below that and the rest are refused instead of starving the API.
+MAX_VIDEO_CLIENTS = 12
+VIDEO_KEEPALIVE_SECONDS = 10
+VIDEO_STALE_SECONDS = 30
+
+MAX_SESSION_ID_LENGTH = 64
 
 
 def create_app(pipeline, layout):
@@ -81,6 +97,17 @@ def create_app(pipeline, layout):
         if not spot_id:
             response.status_code = 400
             return {"error": "spot_id is required"}
+        # Only stalls that exist, and a session id of sane size. Without this
+        # anyone could fill the holds table with rows for made-up stalls.
+        if not isinstance(spot_id, str) or spot_id not in layout.get("spots", {}):
+            response.status_code = 404
+            return {"error": "unknown spot_id"}
+        if (
+            not isinstance(session_id, str)
+            or not 0 < len(session_id) <= MAX_SESSION_ID_LENGTH
+        ):
+            response.status_code = 400
+            return {"error": "session_id is not valid"}
 
         until = db.place_hold(pipeline.camera_id, spot_id, session_id)
         if until is None:
@@ -151,8 +178,27 @@ def create_app(pipeline, layout):
             ],
         }
 
+    analytics_cache: dict[int, tuple[float, dict]] = {}
+    analytics_lock = threading.Lock()
+
     @app.get("/api/analytics")
     def get_analytics(hours: int = 24):
+        """Occupancy history, recomputed at most every ANALYTICS_TTL_SECONDS.
+
+        Refreshing the aggregate takes seconds. Doing it on every request let
+        a handful of callers tie up the database and the worker threads. The
+        lock means a burst waits for one refresh and then shares its answer.
+        """
+        hours = max(1, min(hours, ANALYTICS_MAX_HOURS))
+        with analytics_lock:
+            cached = analytics_cache.get(hours)
+            if cached and time.monotonic() - cached[0] < ANALYTICS_TTL_SECONDS:
+                return cached[1]
+            payload = compute_analytics(hours)
+            analytics_cache[hours] = (time.monotonic(), payload)
+            return payload
+
+    def compute_analytics(hours):
         # Refresh on read. The background policy runs on a schedule, which is
         # too slow when a demo has just replayed a day and a judge is looking.
         # An unreachable database returns empty history rather than a 500. The
@@ -194,28 +240,68 @@ def create_app(pipeline, layout):
             ],
         }
 
-    @app.get("/video")
-    def video():
-        def frames():
-            import time as _time
+    # Viewer id -> when its stream last ran. A closed tab is only discovered
+    # when a send fails, and after that the generator is left suspended until
+    # the garbage collector reaches it, so a count kept in a `finally` frees
+    # slots late or not at all. A viewer that has not run recently is treated
+    # as gone instead.
+    viewers: dict[int, float] = {}
+    viewer_ids = iter(range(1, 2**62))
+    video_lock = threading.Lock()
 
+    def live_viewers():
+        now = time.monotonic()
+        with video_lock:
+            for gone in [v for v, t in viewers.items() if now - t > VIDEO_STALE_SECONDS]:
+                del viewers[gone]
+            return len(viewers)
+
+    @app.get("/video")
+    def video(response: Response):
+        if live_viewers() >= MAX_VIDEO_CLIENTS:
+            response.status_code = 503
+            response.headers["Retry-After"] = "30"
+            return {"error": "too many viewers, try again shortly"}
+
+        with video_lock:
+            me = next(viewer_ids)
+            viewers[me] = time.monotonic()
+
+        def frames():
+            try:
+                yield from stream(me)
+            finally:
+                with video_lock:
+                    viewers.pop(me, None)
+
+        def stream(me):
             # Send a frame only when the pipeline has made a new one. This used
             # to resend whatever was current every 0.2s, so at 2 fps replay 60%
             # of the stream was the same frame again: about 1.9 GB an hour per
             # open operator tab, which exhausted a free tier's bandwidth.
             # Checking identity is free; nothing goes on the wire until the
             # frame actually changes.
+            #
+            # With nothing new for a while the current frame is sent once more.
+            # A closed tab is only noticed when a send fails, so without this a
+            # paused pipeline would keep every departed viewer's thread forever.
             last = None
+            sent_at = 0.0
             while True:
                 jpeg = pipeline.annotated
-                if jpeg and jpeg is not last:
+                now = time.monotonic()
+                viewers[me] = now
+                if jpeg and (
+                    jpeg is not last or now - sent_at > VIDEO_KEEPALIVE_SECONDS
+                ):
                     last = jpeg
+                    sent_at = now
                     yield (
                         b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
                         + jpeg
                         + b"\r\n"
                     )
-                _time.sleep(0.05)
+                time.sleep(0.05)
 
         return StreamingResponse(
             frames(), media_type="multipart/x-mixed-replace; boundary=frame"
